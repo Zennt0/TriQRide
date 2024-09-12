@@ -24,10 +24,10 @@ try {
 
 // MySQL connection setup
 const dbConfig = {
-  host: 'bovvp4rzqlnrqctrlr2n-mysql.services.clever-cloud.com', // Replace with your live database host
-  user: 'uzqxfx6afvyrctmc',      // Replace with your live database user
-  password: 'QJ3hgHSyI7GyQGSWQAXZ',      // Replace with your live database password
-  database: 'bovvp4rzqlnrqctrlr2n', // Replace with your live database name
+  host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com', // Replace with your live database host
+  user: 'uhncdvszdzjkayy8',      // Replace with your live database user
+  password: 'SUBAKVgaTAKFQf6qBlSe',      // Replace with your live database password
+  database: 'bw3rasmbkvtizwwwumea', // Replace with your live database name
 };
 
 const connect = mysql.createConnection(dbConfig);
