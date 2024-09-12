@@ -1,0 +1,27 @@
+body {
+    background-size: cover;
+    font-family: 'Times New Roman';
+    font-size: large; 
+    }
+
+    #container{
+        background-color: rgb(228, 95, 33);
+        display: flex;
+        align-items: center; /* Centers items vertically */
+}
+
+#form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+}
+#form label {
+    margin-right: 0.5rem;
+}
+#form input {
+    margin-right: 1.5rem;
+    width: 200px;
+}
+#form button {
+    align-self: flex-end; /* Aligns the button with the input fields */
+}
