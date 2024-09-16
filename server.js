@@ -4,12 +4,14 @@ const path = require('path');
 const mysql = require('mysql');
 const moment = require('moment');
 const admin = require('firebase-admin');
+const nodemailer = require('nodemailer');
+
 
 const app = express();
-const PORT = 4500; // Use your desired port number
+const PORT = 4500; 
 
 // Firebase Admin SDK setup
-const serviceAccountPath = path.resolve(__dirname, 'signup-1e8a0-firebase-adminsdk-zr2df-da405d54aa.json'); // Replace with your actual path
+const serviceAccountPath = path.resolve(__dirname, 'signup-1e8a0-firebase-adminsdk-zr2df-da405d54aa.json'); 
 
 try {
   const serviceAccount = require(serviceAccountPath);
@@ -19,15 +21,15 @@ try {
   console.log('Firebase admin initialized successfully.');
 } catch (error) {
   console.error('Failed to load Firebase service account key:', error);
-  process.exit(1); // Exit the process if the key cannot be loaded
+  process.exit(1); 
 }
 
-// MySQL connection setup
+
 const dbConfig = {
-  host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com', // Replace with your live database host
-  user: 'uhncdvszdzjkayy8',      // Replace with your live database user
-  password: 'SUBAKVgaTAKFQf6qBlSe',      // Replace with your live database password
-  database: 'bw3rasmbkvtizwwwumea', // Replace with your live database name
+  host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com', 
+  user: 'uhncdvszdzjkayy8',      
+  password: 'SUBAKVgaTAKFQf6qBlSe',      
+  database: 'bw3rasmbkvtizwwwumea', 
 };
 
 const connect = mysql.createConnection(dbConfig);
@@ -40,18 +42,71 @@ connect.connect((err) => {
   console.log('Connected to MySQL database.');
 });
 
-// Middleware
+
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 
-// Logger middleware
+
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url} - ${moment().format()}`);
   next();
 });
 
 // API Endpoints
+
+// Nodemailer setup
+const transporter = nodemailer.createTransport({
+  service: 'gmail', // Or another email service provider
+  auth: {
+    user: 'your-email@gmail.com', // Your email address
+    pass: 'your-email-password',   // Your email password (consider using environment variables)
+  },
+});
+
+// Generate and send OTP
+app.post('/api/generate-otp', (req, res) => {
+  const { email } = req.body;
+
+  if (!email) {
+    return res.status(400).json({ error: 'Email is required.' });
+  }
+
+  // Generate a 6-digit OTP
+  const otp = Math.floor(100000 + Math.random() * 900000).toString();
+
+  // Set OTP expiry time (e.g., 10 minutes from now)
+  const expiresAt = moment().add(10, 'minutes').format('YYYY-MM-DD HH:mm:ss');
+
+  // Store OTP in the database
+  connect.query(
+    'INSERT INTO otps (email, otp, expires_at) VALUES (?, ?, ?)',
+    [email, otp, expiresAt],
+    (err) => {
+      if (err) {
+        console.error('Error inserting OTP:', err);
+        return res.status(500).json({ error: 'Failed to generate OTP' });
+      }
+
+      // Send OTP email
+      const mailOptions = {
+        from: 'your-email@gmail.com',
+        to: email,
+        subject: 'Your OTP Code',
+        text: `Your OTP code is ${otp}. It will expire in 10 minutes.`,
+      };
+
+      transporter.sendMail(mailOptions, (error, info) => {
+        if (error) {
+          console.error('Error sending OTP email:', error);
+          return res.status(500).json({ error: 'Failed to send OTP email' });
+        }
+        console.log('OTP email sent:', info.response);
+        res.json({ msg: 'OTP generated and sent successfully!' });
+      });
+    }
+  );
+});
 
 // Get all records
 app.get('/api/list', (req, res) => {
@@ -118,19 +173,22 @@ app.post('/api/token', (req, res) => {
   const { id, fcm_token } = req.body;
 
   if (!id || !fcm_token) {
+    console.error('Missing ID or FCM token in request');
     return res.status(400).json({ error: 'ID and FCM token are required.' });
   }
 
-  // Update existing record with the new FCM token
+  console.log(`Received token update request: ID = ${id}, FCM Token = ${fcm_token}`);
+
   connect.query(
     'INSERT INTO datalist (id, fcm_token) VALUES (?, ?) ON DUPLICATE KEY UPDATE fcm_token = VALUES(fcm_token)',
     [id, fcm_token],
-    (err) => {
+    (err, result) => {
       if (err) {
-        console.error('Error updating FCM token:', err);
+        console.error('Error updating FCM token in the database:', err);
         return res.status(500).json({ error: 'Failed to update FCM token' });
       }
 
+      console.log(`FCM token for user ID ${id} updated successfully. Rows affected: ${result.affectedRows}`);
       res.json({ msg: 'FCM token updated successfully!' });
     }
   );
@@ -186,6 +244,31 @@ app.post('/sendnotification', async (req, res) => {
     console.error('Error processing request:', error);
     res.status(500).json({ error: 'Error processing request' });
   }
+});
+
+// New endpoint to report a violation
+app.post('/api/report', (req, res) => {
+  const { violation } = req.body;
+
+  if (!violation) {
+    return res.status(400).json({ error: 'Violation report is required.' });
+  }
+
+  // Insert only the violation into the datalist table
+  const query = `
+    INSERT INTO datalist (Plate_number, Driver_name, Barangay, Violations, fcm_token) 
+    VALUES (NULL, NULL, NULL, ?, NULL)
+  `;
+  const values = [violation];
+
+  connect.query(query, values, (err) => {
+    if (err) {
+      console.error('Error inserting violation into datalist:', err);
+      return res.status(500).json({ error: 'Failed to submit report' });
+    }
+
+    res.json({ msg: 'Violation report submitted successfully!' });
+  });
 });
 
 // Serve static files (if needed)
