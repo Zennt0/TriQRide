@@ -6,12 +6,11 @@ const moment = require('moment');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
 
-
 const app = express();
-const PORT = 4500; 
+const PORT = 4500;
 
 // Firebase Admin SDK setup
-const serviceAccountPath = path.resolve(__dirname, 'signup-1e8a0-firebase-adminsdk-zr2df-da405d54aa.json'); 
+const serviceAccountPath = path.resolve(__dirname, 'signup-1e8a0-firebase-adminsdk-zr2df-da405d54aa.json');
 
 try {
   const serviceAccount = require(serviceAccountPath);
@@ -21,15 +20,14 @@ try {
   console.log('Firebase admin initialized successfully.');
 } catch (error) {
   console.error('Failed to load Firebase service account key:', error);
-  process.exit(1); 
+  process.exit(1);
 }
 
-
 const dbConfig = {
-  host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com', 
-  user: 'uhncdvszdzjkayy8',      
-  password: 'SUBAKVgaTAKFQf6qBlSe',      
-  database: 'bw3rasmbkvtizwwwumea', 
+  host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com',
+  user: 'uhncdvszdzjkayy8',
+  password: 'SUBAKVgaTAKFQf6qBlSe',
+  database: 'bw3rasmbkvtizwwwumea',
 };
 
 const connect = mysql.createConnection(dbConfig);
@@ -42,11 +40,9 @@ connect.connect((err) => {
   console.log('Connected to MySQL database.');
 });
 
-
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
 
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url} - ${moment().format()}`);
@@ -60,7 +56,7 @@ const transporter = nodemailer.createTransport({
   service: 'gmail', // Or another email service provider
   auth: {
     user: 'your-email@gmail.com', // Your email address
-    pass: 'your-email-password',   // Your email password (consider using environment variables)
+    pass: 'your-email-password', // Your email password (consider using environment variables)
   },
 });
 
@@ -72,40 +68,31 @@ app.post('/api/generate-otp', (req, res) => {
     return res.status(400).json({ error: 'Email is required.' });
   }
 
-  // Generate a 6-digit OTP
   const otp = Math.floor(100000 + Math.random() * 900000).toString();
-
-  // Set OTP expiry time (e.g., 10 minutes from now)
   const expiresAt = moment().add(10, 'minutes').format('YYYY-MM-DD HH:mm:ss');
 
-  // Store OTP in the database
-  connect.query(
-    'INSERT INTO otps (email, otp, expires_at) VALUES (?, ?, ?)',
-    [email, otp, expiresAt],
-    (err) => {
-      if (err) {
-        console.error('Error inserting OTP:', err);
-        return res.status(500).json({ error: 'Failed to generate OTP' });
-      }
-
-      // Send OTP email
-      const mailOptions = {
-        from: 'your-email@gmail.com',
-        to: email,
-        subject: 'Your OTP Code',
-        text: `Your OTP code is ${otp}. It will expire in 10 minutes.`,
-      };
-
-      transporter.sendMail(mailOptions, (error, info) => {
-        if (error) {
-          console.error('Error sending OTP email:', error);
-          return res.status(500).json({ error: 'Failed to send OTP email' });
-        }
-        console.log('OTP email sent:', info.response);
-        res.json({ msg: 'OTP generated and sent successfully!' });
-      });
+  connect.query('INSERT INTO otps (email, otp, expires_at) VALUES (?, ?, ?)', [email, otp, expiresAt], (err) => {
+    if (err) {
+      console.error('Error inserting OTP:', err);
+      return res.status(500).json({ error: 'Failed to generate OTP' });
     }
-  );
+
+    const mailOptions = {
+      from: 'your-email@gmail.com',
+      to: email,
+      subject: 'Your OTP Code',
+      text: `Your OTP code is ${otp}. It will expire in 10 minutes.`,
+    };
+
+    transporter.sendMail(mailOptions, (error, info) => {
+      if (error) {
+        console.error('Error sending OTP email:', error);
+        return res.status(500).json({ error: 'Failed to send OTP email' });
+      }
+      console.log('OTP email sent:', info.response);
+      res.json({ msg: 'OTP generated and sent successfully!' });
+    });
+  });
 });
 
 // Get all records
@@ -130,7 +117,7 @@ app.get('/api/list/:id', (req, res) => {
     }
     if (rows.length > 0) {
       res.json(rows[0]);
-    } else {    
+    } else {
       res.status(404).json({ msg: `Record with ID ${id} not found!` });
     }
   });
@@ -229,6 +216,8 @@ app.post('/sendnotification', async (req, res) => {
         token: fcm_token, // Device token to notify
       };
 
+      console.log('Notification Payload:', message); // Log the payload
+
       // Send notification
       admin.messaging().send(message)
         .then(response => {
@@ -237,7 +226,7 @@ app.post('/sendnotification', async (req, res) => {
         })
         .catch(error => {
           console.error('Error sending notification:', error);
-          res.status(500).json({ error: 'Error sending notification' });
+          res.status(500).json({ error: 'Error sending notification', details: error });
         });
     });
   } catch (error) {
@@ -267,14 +256,10 @@ app.post('/api/report', (req, res) => {
       return res.status(500).json({ error: 'Failed to submit report' });
     }
 
-    res.json({ msg: 'Violation report submitted successfully!' });
+    res.json({ msg: 'Report submitted successfully!' });
   });
 });
 
-// Serve static files (if needed)
-app.use(express.static(path.join(__dirname, 'public')));
-
-// Start the server
 app.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
