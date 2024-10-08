@@ -203,11 +203,12 @@ app.get('/api/qr/:id', (req, res) => {
             return res.status(404).json({ error: `No record found for ID: ${id}. Please check and try again.` });
         }
 
-        const record = rows[0];
-        const qrData = `https://triqride.onrender.com/api/qr?plate=${record.Plate_Number}&driver=${record.Driver_name}&barangay=${record.Barangay}&violations=${record.Violations}`;
-
+        // Generate the QR code URL with the ID
+        const qrData = `https://triqride.onrender.com/api/qr?id=${id}`;
+        
         console.log(`[${new Date().toISOString()}] Generating QR code with URL: ${qrData}`);
 
+        // Create QR Code
         QRCode.toDataURL(qrData, (err, url) => {
             if (err) {
                 console.error(`[${new Date().toISOString()}] Error generating QR code:`, err);
@@ -219,29 +220,32 @@ app.get('/api/qr/:id', (req, res) => {
         });
     });
 });
+
 app.get('/api/qr', (req, res) => {
-    console.log(`[${new Date().toISOString()}] GET /api/qr - Request received`  );
-    console.log('Request Query Params:', req.query);
+    console.log(`[${new Date().toISOString()}] GET /api/qr - Request received`);
+    const { id } = req.query;
 
-    const { plate, driver, barangay, violations } = req.query;
+    if (!id) {
+        return res.status(400).json({ error: 'ID is required' });
+    }
 
-    const query = `SELECT * FROM datalist WHERE Plate_number = ? AND Driver_name = ? AND Barangay = ? AND Violations = ?`;
-    connect.query(query, [plate, driver, barangay, violations], (err, rows) => {
+    // Query the database for the record with the matching ID
+    const query = `SELECT * FROM datalist WHERE id = ?`;
+    connect.query(query, [id], (err, rows) => {
         if (err) {
             console.error(`[${new Date().toISOString()}] Error executing query:`, err);
             return res.status(500).json({ error: 'Database query error' });
         }
 
         if (rows.length === 0) {
-            console.log(`[${new Date().toISOString()}] No record found for query:`, req.query);
+            console.log(`[${new Date().toISOString()}] No record found for ID: ${id}`);
             return res.status(404).json({ error: 'No record found' });
         }
 
-        console.log(`[${new Date().toISOString()}] Record found for query:`, rows[0]);
+        console.log(`[${new Date().toISOString()}] Record found for ID: ${id}`);
         res.json({ success: true, data: rows[0] });
     });
 });
-
 
 
 // Store or update FCM token
