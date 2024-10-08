@@ -33,10 +33,10 @@ try {
 }
 
 const dbConfig = {
-    host: 'localhost',
-    user: 'root',
-    password: '',
-    database: 'driverlist',
+    host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com',
+    user: 'uhncdvszdzjkayy8',
+    password: 'SUBAKVgaTAKFQf6qBlSe',
+    database: 'bw3rasmbkvtizwwwumea',
 };
 
 const connect = mysql.createConnection(dbConfig);
