@@ -25,15 +25,12 @@ try {
     const serviceAccount = require(serviceAccountPath);
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
-        storageBucket: 'gs://signup-1e8a0.appspot.com', 
     });
     console.log('Firebase admin initialized successfully.');
 } catch (error) {
     console.error('Failed to load Firebase service account key:', error);
     process.exit(1);
 }
-
-const bucket = admin.storage().bucket()
 
 const dbConfig = {
     host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com',
@@ -62,7 +59,14 @@ app.use((req, res, next) => {
 });
 
 // Multer setup for handling file uploads
-const storage = multer.memoryStorage(); // Store file in memory buffer
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+        cb(null, 'uploads/'); // Store files in the 'uploads' directory
+    },
+    filename: (req, file, cb) => {
+        cb(null, Date.now() + path.extname(file.originalname)); // Use timestamp as filename
+    }
+});
 
 // Validate image types (JPEG, PNG, GIF) and limit file size to 5MB
 const upload = multer({
@@ -85,7 +89,7 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 // API Endpoints
 
 // Add a new record with image upload
-app.post('/api/list', upload.single('image'), async (req, res) => {
+app.post('/api/list', upload.single('image'), (req, res) => {
     console.log('POST /api/list - Request received');
     const { plate, driver, brgy, actions } = req.body;
 
@@ -94,55 +98,17 @@ app.post('/api/list', upload.single('image'), async (req, res) => {
         return res.status(400).json({ error: 'Please provide all required fields.' });
     }
 
-    let imageUrl = null;
+    const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
 
-    if (req.file) {
-        const imageBuffer = req.file.buffer;  // File buffer from Multer
-        const fileName = Date.now() + path.extname(req.file.originalname); // Generate unique file name
-
-        // Upload the file to Firebase Cloud Storage
-        const file = bucket.file(fileName);
-
-        try {
-            const stream = file.createWriteStream({
-                metadata: {
-                    contentType: req.file.mimetype,
-                }
-            });
-
-            stream.on('error', (err) => {
-                console.error('Error uploading file to Firebase:', err);
-                return res.status(500).json({ error: 'Failed to upload image to Firebase.' });
-            });
-
-            stream.on('finish', async () => {
-                // Get public URL of the uploaded image
-                const [url] = await file.getSignedUrl({
-                    action: 'read',
-                    expires: '03-09-2500', // Expiration date in the future
-                });
-
-                console.log('Image uploaded successfully to Firebase:', url);
-                imageUrl = url; // Assign the Firebase image URL
-            });
-
-            stream.end(imageBuffer);
-        } catch (error) {
-            console.error('Error uploading image to Firebase:', error);
-            return res.status(500).json({ error: 'Error uploading image to Firebase.' });
-        }
-    }
-
-    // Insert data into the MySQL database
-    console.log('Inserting data into the database', { plate, driver, brgy, actions, imageUrl });
+    console.log('Inserting data into the database', { plate, driver, brgy, actions, imagePath });
     connect.query('INSERT INTO datalist (Plate_number, Driver_name, Barangay, Violations, image) VALUES (?, ?, ?, ?, ?)',
-        [plate, driver, brgy, actions, imageUrl], (err) => {
+        [plate, driver, brgy, actions, imagePath], (err) => {
             if (err) {
                 console.error('Error inserting data:', err);
                 return res.status(500).json({ error: 'Failed to insert data' });
             }
             console.log('Data inserted successfully');
-            res.json({ msg: 'Successfully posted with image!', imageUrl });
+            res.json({ msg: 'Successfully posted with image!', imagePath });
         });
 });
 
