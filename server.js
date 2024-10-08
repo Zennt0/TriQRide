@@ -204,7 +204,7 @@ app.get('/api/qr/:id', (req, res) => {
         }
 
         const record = rows[0];
-        const qrData = `http://192.168.0.106:4500/api/qr?plate=${record.Plate_Number}&driver=${record.Driver_name}&barangay=${record.Barangay}&violations=${record.Violations}`;
+        const qrData = `https://triqride.onrender.com/api/qr?plate=${record.Plate_Number}&driver=${record.Driver_name}&barangay=${record.Barangay}&violations=${record.Violations}`;
 
         console.log(`[${new Date().toISOString()}] Generating QR code with URL: ${qrData}`);
 
