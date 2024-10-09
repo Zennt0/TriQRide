@@ -340,42 +340,55 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/api/report/:id', (req, res) => {
+    console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
     const { report, plate, driver, brgy } = req.body;
 
+    // Validate required fields
     if (!report || report.trim() === '') {
         return res.status(400).json({ error: 'Violation report cannot be empty.' });
+    }
+
+    if (!plate || !driver || !brgy) {
+        return res.status(400).json({ error: 'Plate number, driver name, and barangay are required.' });
     }
 
     // Fetch the current violations for the driver
     connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], (err, rows) => {
         if (err) {
-            console.error('Error fetching driver violations:', err);
+            console.error('Error fetching driver data:', err);
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
         if (rows.length === 0) {
-            // If the driver doesn't exist, recreate the driver record with the report
+            // If the driver doesn't exist, create a new driver record with the report
             const newViolations = report;
             connect.query(
-                'INSERT INTO datalist (id, Plate_number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
                 [driverId, plate, driver, brgy, newViolations],
                 (insertErr) => {
                     if (insertErr) {
                         console.error('Error inserting new driver:', insertErr);
-                        return res.status(500).json({ error: 'Failed to recreate driver record.' });
+                        return res.status(500).json({ error: 'Failed to create driver record.' });
                     }
 
                     console.log(`New driver record created with ID ${driverId} and violation added.`);
-                    res.json({ msg: 'Driver recreated and report submitted successfully!', newViolations });
+                    res.json({
+                        msg: 'Driver created and report submitted successfully!',
+                        driverId,
+                        plate,
+                        driver,
+                        brgy,
+                        violations: newViolations
+                    });
                 }
             );
         } else {
-            // If driver exists, append the violation
+            // Driver exists, append the new report to existing violations
             const currentViolations = rows[0]?.Violations || '';
             const updatedViolations = currentViolations
-                ? `${currentViolations}; ${report}`  // Append the new report to the existing violations
-                : report;
+                ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
+                : report.trim();
 
             // Update the violations field in the database
             connect.query(
@@ -388,7 +401,14 @@ app.post('/api/report/:id', (req, res) => {
                     }
 
                     console.log(`Violations updated successfully for driver ID ${driverId}`);
-                    res.json({ msg: 'Report submitted successfully!', updatedViolations });
+                    res.json({
+                        msg: 'Report submitted successfully!',
+                        driverId,
+                        plate: rows[0].Plate_Number,
+                        driver: rows[0].Driver_name,
+                        brgy: rows[0].Barangay,
+                        violations: updatedViolations
+                    });
                 }
             );
         }
