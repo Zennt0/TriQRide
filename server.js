@@ -339,6 +339,63 @@ app.post('/sendnotification', (req, res) => {
     });
 });
 
+app.post('/api/report/:id', (req, res) => {
+    const driverId = req.params.id;
+    const { report, plate, driver, brgy } = req.body;
+
+    if (!report || report.trim() === '') {
+        return res.status(400).json({ error: 'Violation report cannot be empty.' });
+    }
+
+    // Fetch the current violations for the driver
+    connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], (err, rows) => {
+        if (err) {
+            console.error('Error fetching driver violations:', err);
+            return res.status(500).json({ error: 'Failed to fetch driver data.' });
+        }
+
+        if (rows.length === 0) {
+            // If the driver doesn't exist, recreate the driver record with the report
+            const newViolations = report;
+            connect.query(
+                'INSERT INTO datalist (id, Plate_number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
+                [driverId, plate, driver, brgy, newViolations],
+                (insertErr) => {
+                    if (insertErr) {
+                        console.error('Error inserting new driver:', insertErr);
+                        return res.status(500).json({ error: 'Failed to recreate driver record.' });
+                    }
+
+                    console.log(`New driver record created with ID ${driverId} and violation added.`);
+                    res.json({ msg: 'Driver recreated and report submitted successfully!', newViolations });
+                }
+            );
+        } else {
+            // If driver exists, append the violation
+            const currentViolations = rows[0]?.Violations || '';
+            const updatedViolations = currentViolations
+                ? `${currentViolations}; ${report}`  // Append the new report to the existing violations
+                : report;
+
+            // Update the violations field in the database
+            connect.query(
+                'UPDATE datalist SET Violations = ? WHERE id = ?',
+                [updatedViolations, driverId],
+                (updateErr) => {
+                    if (updateErr) {
+                        console.error('Error updating violations:', updateErr);
+                        return res.status(500).json({ error: 'Failed to update violations.' });
+                    }
+
+                    console.log(`Violations updated successfully for driver ID ${driverId}`);
+                    res.json({ msg: 'Report submitted successfully!', updatedViolations });
+                }
+            );
+        }
+    });
+});
+
+
 // Start the server 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
