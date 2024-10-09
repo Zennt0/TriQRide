@@ -12,11 +12,7 @@ const fs = require('fs');
 const app = express();
 const PORT = 4500;
 
-// Create the uploads directory if it doesn't exist
-const uploadsDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir);
-}
+
 
 // Firebase Admin SDK setup
 const serviceAccountPath = path.resolve(__dirname, 'signup-1e8a0-firebase-adminsdk-zr2df-da405d54aa.json');
@@ -25,12 +21,15 @@ try {
     const serviceAccount = require(serviceAccountPath);
     admin.initializeApp({
         credential: admin.credential.cert(serviceAccount),
+        storageBucket: 'gs://signup-1e8a0.appspot.com', 
     });
     console.log('Firebase admin initialized successfully.');
 } catch (error) {
     console.error('Failed to load Firebase service account key:', error);
     process.exit(1);
 }
+
+const bucket = admin.storage().bucket();
 
 const dbConfig = {
     host: 'bw3rasmbkvtizwwwumea-mysql.services.clever-cloud.com',
@@ -56,21 +55,12 @@ app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - Request received`);
     next();
-});
+});;
 
-// Multer setup for handling file uploads
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, 'uploads/'); // Store files in the 'uploads' directory
-    },
-    filename: (req, file, cb) => {
-        cb(null, Date.now() + path.extname(file.originalname)); // Use timestamp as filename
-    }
-});
 
 // Validate image types (JPEG, PNG, GIF) and limit file size to 5MB
 const upload = multer({
-    storage: storage,
+    storage: multer.memoryStorage(), // Store in memory, providing a buffer
     limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
     fileFilter: (req, file, cb) => {
         const allowedTypes = /jpeg|jpg|png|gif/;
@@ -83,33 +73,63 @@ const upload = multer({
     }
 });
 
-// Serve static files from the uploads directory
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // API Endpoints
 
 // Add a new record with image upload
 app.post('/api/list', upload.single('image'), (req, res) => {
-    console.log('POST /api/list - Request received');
     const { plate, driver, brgy, actions } = req.body;
 
-    if (!plate || !driver || !brgy || !actions) {
-        console.error('Validation Error: Missing fields', { plate, driver, brgy, actions });
-        return res.status(400).json({ error: 'Please provide all required fields.' });
+    if (!plate || !driver || !brgy || !actions || !req.file) {
+        return res.status(400).json({ error: 'All fields are required, including the image.' });
     }
 
-    const imagePath = req.file ? `/uploads/${req.file.filename}` : null;
+    // Firebase storage reference
+    const bucket = admin.storage().bucket();
+    const fileName = Date.now() + path.extname(req.file.originalname);
+    const file = bucket.file(`images/${fileName}`);
 
-    console.log('Inserting data into the database', { plate, driver, brgy, actions, imagePath });
-    connect.query('INSERT INTO datalist (Plate_number, Driver_name, Barangay, Violations, image) VALUES (?, ?, ?, ?, ?)',
-        [plate, driver, brgy, actions, imagePath], (err) => {
-            if (err) {
-                console.error('Error inserting data:', err);
-                return res.status(500).json({ error: 'Failed to insert data' });
-            }
-            console.log('Data inserted successfully');
-            res.json({ msg: 'Successfully posted with image!', imagePath });
-        });
+    // Create a write stream to Firebase Storage
+    const stream = file.createWriteStream({
+        metadata: {
+            contentType: req.file.mimetype,
+        },
+    });
+
+    // Handle the stream events
+    stream.on('error', (err) => {
+        console.error('Error uploading to Firebase Storage:', err);
+        return res.status(500).json({ error: 'Failed to upload image' });
+    });
+
+    stream.on('finish', async () => {
+        try {
+            // Make the image public (optional, depends on your use case)
+            await file.makePublic();
+
+            // Get the image URL
+            const imageUrl = file.publicUrl();
+
+            // Insert record into MySQL
+            connect.query(
+                'INSERT INTO datalist (Plate_number, Driver_name, Barangay, Violations, image) VALUES (?, ?, ?, ?, ?)',
+                [plate, driver, brgy, actions, imageUrl],
+                (err) => {
+                    if (err) {
+                        console.error('Error inserting data into MySQL:', err);
+                        return res.status(500).json({ error: 'Failed to insert data' });
+                    }
+
+                    res.json({ msg: 'Successfully posted with image!', imagePath: imageUrl });
+                }
+            );
+        } catch (err) {
+            console.error('Error making image public:', err);
+            res.status(500).json({ error: 'Error saving image' });
+        }
+    });
+
+    // Pipe the file stream to Firebase
+    stream.end(req.file.buffer);
 });
 
 // Get all records with images
@@ -223,26 +243,23 @@ app.get('/api/qr/:id', (req, res) => {
 
 app.get('/api/qr', (req, res) => {
     console.log(`[${new Date().toISOString()}] GET /api/qr - Request received`);
-    const { id } = req.query;
+    console.log('Request Query Params:', req.query);
 
-    if (!id) {
-        return res.status(400).json({ error: 'ID is required' });
-    }
+    const { plate, driver, barangay, violations } = req.query;
 
-    // Query the database for the record with the matching ID
-    const query = `SELECT * FROM datalist WHERE id = ?`;
-    connect.query(query, [id], (err, rows) => {
+    const query = `SELECT * FROM datalist WHERE Plate_number = ? AND Driver_name = ? AND Barangay = ? AND Violations = ?`;
+    connect.query(query, [plate, driver, barangay, violations], (err, rows) => {
         if (err) {
             console.error(`[${new Date().toISOString()}] Error executing query:`, err);
             return res.status(500).json({ error: 'Database query error' });
         }
 
         if (rows.length === 0) {
-            console.log(`[${new Date().toISOString()}] No record found for ID: ${id}`);
+            console.log(`[${new Date().toISOString()}] No record found for query:`, req.query);
             return res.status(404).json({ error: 'No record found' });
         }
 
-        console.log(`[${new Date().toISOString()}] Record found for ID: ${id}`);
+        console.log(`[${new Date().toISOString()}] Record found for query:`, rows[0]);
         res.json({ success: true, data: rows[0] });
     });
 });
