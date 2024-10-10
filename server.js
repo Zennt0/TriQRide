@@ -360,22 +360,22 @@ app.post('/api/report/:id', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
-        if (rows.length === 0) {
-            // If the driver doesn't exist, create a new driver record with the report
-            const newViolations = report;
-            connect.query(
-                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
-                [driverId, plate, driver, brgy, newViolations],
-                (insertErr) => {
-                    if (insertErr) {
-                        console.error('Error inserting new driver:', insertErr);
-                        return res.status(500).json({ error: 'Failed to create driver record.' });
-                    }
+        // Fetch image from Firebase first
+        fetchImageUrlFromFirebase(driverId).then((imageUrl) => {
 
-                    console.log(`New driver record created with ID ${driverId} and violation added.`);
+            if (rows.length === 0) {
+                // If the driver doesn't exist, create a new driver record with the report and image URL
+                const newViolations = report;
+                connect.query(
+                    'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, image) VALUES (?, ?, ?, ?, ?, ?)',
+                    [driverId, plate, driver, brgy, newViolations, imageUrl],
+                    (insertErr) => {
+                        if (insertErr) {
+                            console.error('Error inserting new driver:', insertErr);
+                            return res.status(500).json({ error: 'Failed to create driver record.' });
+                        }
 
-                    // Fetch image from Firebase after record creation
-                    fetchImageUrlFromFirebase(driverId).then((imageUrl) => {
+                        console.log(`New driver record created with ID ${driverId} and violation added.`);
                         res.json({
                             msg: 'Driver created and report submitted successfully!',
                             driverId,
@@ -385,33 +385,26 @@ app.post('/api/report/:id', (req, res) => {
                             violations: newViolations,
                             imageUrl // Return image URL fetched from Firebase
                         });
-                    }).catch(err => {
-                        console.error('Error fetching image URL:', err);
-                        res.status(500).json({ error: 'Failed to fetch image URL.' });
-                    });
-                }
-            );
-        } else {
-            // Driver exists, append the new report to existing violations
-            const currentViolations = rows[0]?.Violations || '';
-            const updatedViolations = currentViolations
-                ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
-                : report.trim();
-
-            // Update the violations field in the database
-            connect.query(
-                'UPDATE datalist SET Violations = ? WHERE id = ?',
-                [updatedViolations, driverId],
-                (updateErr) => {
-                    if (updateErr) {
-                        console.error('Error updating violations:', updateErr);
-                        return res.status(500).json({ error: 'Failed to update violations.' });
                     }
+                );
+            } else {
+                // Driver exists, append the new report to existing violations
+                const currentViolations = rows[0]?.Violations || '';
+                const updatedViolations = currentViolations
+                    ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
+                    : report.trim();
 
-                    console.log(`Violations updated successfully for driver ID ${driverId}`);
+                // Update the violations and image URL field in the database
+                connect.query(
+                    'UPDATE datalist SET Violations = ?, image = ? WHERE id = ?',
+                    [updatedViolations, imageUrl, driverId],
+                    (updateErr) => {
+                        if (updateErr) {
+                            console.error('Error updating violations:', updateErr);
+                            return res.status(500).json({ error: 'Failed to update violations.' });
+                        }
 
-                    // Fetch image from Firebase after updating the violations
-                    fetchImageUrlFromFirebase(driverId).then((imageUrl) => {
+                        console.log(`Violations updated successfully for driver ID ${driverId}`);
                         res.json({
                             msg: 'Report submitted successfully!',
                             driverId,
@@ -421,13 +414,14 @@ app.post('/api/report/:id', (req, res) => {
                             violations: updatedViolations,
                             imageUrl // Return image URL fetched from Firebase
                         });
-                    }).catch(err => {
-                        console.error('Error fetching image URL:', err);
-                        res.status(500).json({ error: 'Failed to fetch image URL.' });
-                    });
-                }
-            );
-        }
+                    }
+                );
+            }
+
+        }).catch(err => {
+            console.error('Error fetching image URL:', err);
+            res.status(500).json({ error: 'Failed to fetch image URL.' });
+        });
     });
 });
 
