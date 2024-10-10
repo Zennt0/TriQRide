@@ -360,84 +360,61 @@ app.post('/api/report/:id', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
-        // Fetch image from Firebase first
-        fetchImageUrlFromFirebase(driverId).then((imageUrl) => {
-
-            if (rows.length === 0) {
-                // If the driver doesn't exist, create a new driver record with the report and image URL
-                const newViolations = report;
-                connect.query(
-                    'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, image) VALUES (?, ?, ?, ?, ?, ?)',
-                    [driverId, plate, driver, brgy, newViolations, imageUrl],
-                    (insertErr) => {
-                        if (insertErr) {
-                            console.error('Error inserting new driver:', insertErr);
-                            return res.status(500).json({ error: 'Failed to create driver record.' });
-                        }
-
-                        console.log(`New driver record created with ID ${driverId} and violation added.`);
-                        res.json({
-                            msg: 'Driver created and report submitted successfully!',
-                            driverId,
-                            plate,
-                            driver,
-                            brgy,
-                            violations: newViolations,
-                            imageUrl // Return image URL fetched from Firebase
-                        });
+        if (rows.length === 0) {
+            // If the driver doesn't exist, create a new driver record with the report
+            const newViolations = report;
+            connect.query(
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
+                [driverId, plate, driver, brgy, newViolations],
+                (insertErr) => {
+                    if (insertErr) {
+                        console.error('Error inserting new driver:', insertErr);
+                        return res.status(500).json({ error: 'Failed to create driver record.' });
                     }
-                );
-            } else {
-                // Driver exists, append the new report to existing violations
-                const currentViolations = rows[0]?.Violations || '';
-                const updatedViolations = currentViolations
-                    ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
-                    : report.trim();
 
-                // Update the violations and image URL field in the database
-                connect.query(
-                    'UPDATE datalist SET Violations = ?, image = ? WHERE id = ?',
-                    [updatedViolations, imageUrl, driverId],
-                    (updateErr) => {
-                        if (updateErr) {
-                            console.error('Error updating violations:', updateErr);
-                            return res.status(500).json({ error: 'Failed to update violations.' });
-                        }
+                    console.log(`New driver record created with ID ${driverId} and violation added.`);
+                    res.json({
+                        msg: 'Driver created and report submitted successfully!',
+                        driverId,
+                        plate,
+                        driver,
+                        brgy,
+                        violations: newViolations
+                    });
+                }
+            );
+        } else {
+            // Driver exists, append the new report to existing violations
+            const currentViolations = rows[0]?.Violations || '';
+            const updatedViolations = currentViolations
+                ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
+                : report.trim();
 
-                        console.log(`Violations updated successfully for driver ID ${driverId}`);
-                        res.json({
-                            msg: 'Report submitted successfully!',
-                            driverId,
-                            plate: rows[0].Plate_Number,
-                            driver: rows[0].Driver_name,
-                            brgy: rows[0].Barangay,
-                            violations: updatedViolations,
-                            imageUrl // Return image URL fetched from Firebase
-                        });
+            // Update the violations field in the database
+            connect.query(
+                'UPDATE datalist SET Violations = ? WHERE id = ?',
+                [updatedViolations, driverId],
+                (updateErr) => {
+                    if (updateErr) {
+                        console.error('Error updating violations:', updateErr);
+                        return res.status(500).json({ error: 'Failed to update violations.' });
                     }
-                );
-            }
 
-        }).catch(err => {
-            console.error('Error fetching image URL:', err);
-            res.status(500).json({ error: 'Failed to fetch image URL.' });
-        });
+                    console.log(`Violations updated successfully for driver ID ${driverId}`);
+                    res.json({
+                        msg: 'Report submitted successfully!',
+                        driverId,
+                        plate: rows[0].Plate_Number,
+                        driver: rows[0].Driver_name,
+                        brgy: rows[0].Barangay,
+                        violations: updatedViolations
+                    });
+                }
+            );
+        }
     });
 });
 
-// Function to fetch the image URL from Firebase
-async function fetchImageUrlFromFirebase(driverId) {
-    const bucket = admin.storage().bucket(); // Get the storage bucket instance
-    const imageRef = bucket.file(`images/${driverId}.jpg`); // Reference to the image file
-    
-    // Generate a signed URL to access the image
-    const [url] = await imageRef.getSignedUrl({
-        action: 'read',
-        expires: '03-09-2491' // Set an appropriate expiration date
-    });
-
-    return url; // Return the signed image URL
-}
 
 // Start the server 
 app.listen(PORT, () => {
