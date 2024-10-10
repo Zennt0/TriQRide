@@ -427,10 +427,8 @@ app.post('/api/report/:id', (req, res) => {
 
 // Function to fetch the image URL from Firebase
 async function fetchImageUrlFromFirebase(driverId) {
-    // Assuming you are using Firebase Admin SDK to fetch the image
-    // Example logic here, customize as per your setup
-
-    const imageRef = firebaseAdmin.storage().bucket().file(`images/${driverId}.jpg`);
+    const bucket = admin.storage().bucket(); // Get the storage bucket instance
+    const imageRef = bucket.file(`images/${driverId}.jpg`); // Reference to the image file
     
     // Generate a signed URL to access the image
     const [url] = await imageRef.getSignedUrl({
