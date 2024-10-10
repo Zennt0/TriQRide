@@ -373,13 +373,21 @@ app.post('/api/report/:id', (req, res) => {
                     }
 
                     console.log(`New driver record created with ID ${driverId} and violation added.`);
-                    res.json({
-                        msg: 'Driver created and report submitted successfully!',
-                        driverId,
-                        plate,
-                        driver,
-                        brgy,
-                        violations: newViolations
+
+                    // Fetch image from Firebase after record creation
+                    fetchImageUrlFromFirebase(driverId).then((imageUrl) => {
+                        res.json({
+                            msg: 'Driver created and report submitted successfully!',
+                            driverId,
+                            plate,
+                            driver,
+                            brgy,
+                            violations: newViolations,
+                            imageUrl // Return image URL fetched from Firebase
+                        });
+                    }).catch(err => {
+                        console.error('Error fetching image URL:', err);
+                        res.status(500).json({ error: 'Failed to fetch image URL.' });
                     });
                 }
             );
@@ -401,13 +409,21 @@ app.post('/api/report/:id', (req, res) => {
                     }
 
                     console.log(`Violations updated successfully for driver ID ${driverId}`);
-                    res.json({
-                        msg: 'Report submitted successfully!',
-                        driverId,
-                        plate: rows[0].Plate_Number,
-                        driver: rows[0].Driver_name,
-                        brgy: rows[0].Barangay,
-                        violations: updatedViolations
+
+                    // Fetch image from Firebase after updating the violations
+                    fetchImageUrlFromFirebase(driverId).then((imageUrl) => {
+                        res.json({
+                            msg: 'Report submitted successfully!',
+                            driverId,
+                            plate: rows[0].Plate_Number,
+                            driver: rows[0].Driver_name,
+                            brgy: rows[0].Barangay,
+                            violations: updatedViolations,
+                            imageUrl // Return image URL fetched from Firebase
+                        });
+                    }).catch(err => {
+                        console.error('Error fetching image URL:', err);
+                        res.status(500).json({ error: 'Failed to fetch image URL.' });
                     });
                 }
             );
@@ -415,6 +431,21 @@ app.post('/api/report/:id', (req, res) => {
     });
 });
 
+// Function to fetch the image URL from Firebase
+async function fetchImageUrlFromFirebase(driverId) {
+    // Assuming you are using Firebase Admin SDK to fetch the image
+    // Example logic here, customize as per your setup
+
+    const imageRef = firebaseAdmin.storage().bucket().file(`images/${driverId}.jpg`);
+    
+    // Generate a signed URL to access the image
+    const [url] = await imageRef.getSignedUrl({
+        action: 'read',
+        expires: '03-09-2491' // Set an appropriate expiration date
+    });
+
+    return url; // Return the signed image URL
+}
 
 // Start the server 
 app.listen(PORT, () => {
