@@ -210,22 +210,22 @@ app.delete('/api/list', (req, res) => {
 // New endpoint to generate QR code for a record by ID
 app.get('/api/qr/:id', (req, res) => {
     const qrId = req.params.id;
-    const userIp = req.ip; // Get user's IP address
-    const currentTime = moment(); // Get current time using Moment.js
-    const oneDayAgo = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
+    const userIp = req.headers['x-forwarded-for'] || req.ip; // Get user's IP address considering proxies
+    const currentTime = new Date(); // Get current time using JavaScript Date object
+    const oneDayAgo = new Date(new Date().getTime() - 24 * 60 * 60 * 1000); // 24 hours ago
 
-    // Check if this user has scanned the QR code in the last 24 hours
+    // Check if this user has scanned the QR code in the last 24 hours using EXISTS
     const checkQuery = `
-        SELECT * FROM qr_scan_history 
-        WHERE qr_id = ? AND user_ip = ? AND scanned_at > ?`;
-    
+        SELECT EXISTS(SELECT 1 FROM qr_scan_history 
+        WHERE qr_id = ? AND user_ip = ? AND scanned_at > ?) AS scanned_recently`;
+
     connect.query(checkQuery, [qrId, userIp, oneDayAgo], (err, results) => {
         if (err) {
-            console.error('Error checking scan history:', err);
+            console.error(`Error checking scan history for qrId: ${qrId}, userIp: ${userIp}`, err);
             return res.status(500).json({ error: 'Error checking scan history' });
         }
 
-        if (results.length > 0) {
+        if (results[0].scanned_recently) {
             // User has already scanned the QR code within the last 24 hours
             return res.status(429).json({ msg: 'You can only scan this QR code once per day.' });
         }
@@ -234,8 +234,8 @@ app.get('/api/qr/:id', (req, res) => {
         const insertQuery = `
             INSERT INTO qr_scan_history (qr_id, user_ip, scanned_at) 
             VALUES (?, ?, ?)`;
-        
-        connect.query(insertQuery, [qrId, userIp, currentTime.format('YYYY-MM-DD HH:mm:ss')], (err) => {
+
+        connect.query(insertQuery, [qrId, userIp, currentTime.toISOString().slice(0, 19).replace('T', ' ')], (err) => {
             if (err) {
                 console.error('Error logging QR scan:', err);
                 return res.status(500).json({ error: 'Error logging scan' });
