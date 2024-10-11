@@ -379,61 +379,54 @@ app.post('/api/report/:id', async (req, res) => {
     // Log the received data
     console.log('Received data:', req.body);
 
-    // Fetch the current violations for the driver
+    // Fetch the current data for the driver, if any
     connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], async (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
+        // Case 1: If driver does not exist, create a new record
         if (rows.length === 0) {
-            // If the driver doesn't exist, create a new driver record with the report
-            const newViolations = report;
             connect.query(
-                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)', // Include fcm_token here
-                [driverId, plate, driver, brgy, newViolations, fcm_token], // Include fcm_token in the values
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
+                [driverId, plate, driver, brgy, report, fcm_token], // Insert the new report as a separate entry
                 (insertErr) => {
                     if (insertErr) {
-                        console.error('Error inserting new driver:', insertErr);
+                        console.error('Error inserting new driver record:', insertErr);
                         return res.status(500).json({ error: 'Failed to create driver record.' });
                     }
 
-                    console.log(`New driver record created with ID ${driverId} and violation added.`);
+                    console.log(`New driver record created with ID ${driverId} and violation report added.`);
                     res.json({
                         msg: 'Driver created and report submitted successfully!',
                         driverId,
                         plate,
                         driver,
                         brgy,
-                        violations: newViolations
+                        violations: report // Returning the single report here
                     });
                 }
             );
         } else {
-            // Driver exists, append the new report to existing violations
-            const currentViolations = rows[0]?.Violations || '';
-            const updatedViolations = currentViolations
-                ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
-                : report.trim();
-
-            // Update the violations field and fcm_token in the database
+            // Case 2: If driver exists, create a new record for each report (no appending to existing data)
             connect.query(
-                'UPDATE datalist SET Violations = ?, fcm_token = ? WHERE id = ?', // Include fcm_token in the update
-                [updatedViolations, fcm_token, driverId], // Include fcm_token in the values
-                (updateErr) => {
-                    if (updateErr) {
-                        console.error('Error updating violations:', updateErr);
-                        return res.status(500).json({ error: 'Failed to update violations.' });
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
+                [driverId, plate, driver, brgy, report, fcm_token], // Insert a new report for the same driver ID
+                (insertErr) => {
+                    if (insertErr) {
+                        console.error('Error inserting new report for existing driver:', insertErr);
+                        return res.status(500).json({ error: 'Failed to submit new report.' });
                     }
 
-                    console.log(`Violations updated successfully for driver ID ${driverId}`);
+                    console.log(`New violation report added for existing driver ID ${driverId}.`);
                     res.json({
                         msg: 'Report submitted successfully!',
                         driverId,
-                        plate: rows[0].Plate_Number,
-                        driver: rows[0].Driver_name,
-                        brgy: rows[0].Barangay,
-                        violations: updatedViolations
+                        plate,
+                        driver,
+                        brgy,
+                        violations: report // Returning only the current report for the response
                     });
                 }
             );
