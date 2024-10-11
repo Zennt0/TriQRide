@@ -377,26 +377,25 @@ app.post('/api/report/:id', async (req, res) => {
 
     // Insert a new record for every report submission
     connect.query(
-        'INSERT INTO datalist (Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
-        [driverId, plate, driver, brgy, report, fcm_token],
-        (insertErr) => {
-            if (insertErr) {
-                console.error('Error inserting new report:', insertErr);
-                return res.status(500).json({ error: 'Failed to submit the report.' });
-            }
-
-            console.log(`New violation report added for driver ID ${driverId}.`);
-            res.json({
-                msg: 'Report submitted successfully!',
-                driverId,
-                plate,
-                driver,
-                brgy,
-                violations: report // Returning the single report in the response
-            });
+    'INSERT INTO datalist (reportID, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
+    [nextReportID, plate, driver, brgy, report, fcm_token],  // Ensure nextReportID is valid
+    (insertErr) => {
+        if (insertErr) {
+            console.error('Error inserting new report:', insertErr);
+            return res.status(500).json({ error: 'Failed to submit the report.' });
         }
-    );
-});
+
+        console.log(`New violation report added for driver ID ${driverId}.`);
+        res.json({
+            msg: 'Report submitted successfully!',
+            driverId,
+            plate,
+            driver,
+            brgy,
+            violations: report // Returning the single report in the response
+        });
+    }
+);
 
 
 
