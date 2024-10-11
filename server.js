@@ -441,6 +441,8 @@ app.post('/api/report/:id', (req, res) => {
 app.post('/api/report/:driverId', async (req, res) => {
   const { plate, driver, brgy, report, fcm_token } = req.body;
 
+    console.log('Received data:', req.body);
+
   try {
     // Store the report and FCM token in the database
     await Report.create({
