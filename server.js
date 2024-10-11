@@ -363,8 +363,9 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/api/report/:id', async (req, res) => {
+    console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
-    const { report, plate, driver, brgy, fcm_token } = req.body;
+    const { report, plate, driver, brgy, fcm_token } = req.body; // Include fcm_token in the destructuring
 
     // Validate required fields
     if (!report || report.trim() === '') {
@@ -375,27 +376,63 @@ app.post('/api/report/:id', async (req, res) => {
         return res.status(400).json({ error: 'Plate number, driver name, and barangay are required.' });
     }
 
-    // Insert a new record for every report submission
-    connect.query(
-    'INSERT INTO datalist (reportID, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
-    [nextReportID, plate, driver, brgy, report, fcm_token],  // Ensure nextReportID is valid
-    (insertErr) => {
-        if (insertErr) {
-            console.error('Error inserting new report:', insertErr);
-            return res.status(500).json({ error: 'Failed to submit the report.' });
+    // Log the received data
+    console.log('Received data:', req.body);
+
+    // Fetch the current data for the driver, if any
+    connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], async (err, rows) => {
+        if (err) {
+            console.error('Error fetching driver data:', err);
+            return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
-        console.log(`New violation report added for driver ID ${driverId}.`);
-        res.json({
-            msg: 'Report submitted successfully!',
-            driverId,
-            plate,
-            driver,
-            brgy,
-            violations: report // Returning the single report in the response
-        });
-    }
-);
+        // Case 1: If driver does not exist, create a new record
+        if (rows.length === 0) {
+            connect.query(
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
+                [driverId, plate, driver, brgy, report, fcm_token], // Insert the new report as a separate entry
+                (insertErr) => {
+                    if (insertErr) {
+                        console.error('Error inserting new driver record:', insertErr);
+                        return res.status(500).json({ error: 'Failed to create driver record.' });
+                    }
+
+                    console.log(`New driver record created with ID ${driverId} and violation report added.`);
+                    res.json({
+                        msg: 'Driver created and report submitted successfully!',
+                        driverId,
+                        plate,
+                        driver,
+                        brgy,
+                        violations: report // Returning the single report here
+                    });
+                }
+            );
+        } else {
+            // Case 2: If driver exists, create a new record for each report (no appending to existing data)
+            connect.query(
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
+                [driverId, plate, driver, brgy, report, fcm_token], // Insert a new report for the same driver ID
+                (insertErr) => {
+                    if (insertErr) {
+                        console.error('Error inserting new report for existing driver:', insertErr);
+                        return res.status(500).json({ error: 'Failed to submit new report.' });
+                    }
+
+                    console.log(`New violation report added for existing driver ID ${driverId}.`);
+                    res.json({
+                        msg: 'Report submitted successfully!',
+                        driverId,
+                        plate,
+                        driver,
+                        brgy,
+                        violations: report // Returning only the current report for the response
+                    });
+                }
+            );
+        }
+    });
+});
 
 
 
