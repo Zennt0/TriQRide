@@ -377,7 +377,7 @@ app.post('/api/report/:id', async (req, res) => {
 
     // Insert a new record for every report submission
     connect.query(
-        'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
+        'INSERT INTO datalist (Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)',
         [driverId, plate, driver, brgy, report, fcm_token],
         (insertErr) => {
             if (insertErr) {
