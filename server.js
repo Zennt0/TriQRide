@@ -438,6 +438,26 @@ app.post('/api/report/:id', (req, res) => {
     });
 });
 
+app.post('/api/report/:driverId', async (req, res) => {
+  const { plate, driver, brgy, report, fcm_token } = req.body;
+
+  try {
+    // Store the report and FCM token in the database
+    await Report.create({
+      driverId: req.params.driverId,
+      plate,
+      driver,
+      brgy,
+      report,
+      fcm_token, // Save the FCM token here
+    });
+
+    res.status(200).json({ message: 'Report submitted successfully' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to submit report' });
+  }
+});
+
 
 // Start the server 
 app.listen(PORT, () => {
