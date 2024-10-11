@@ -362,10 +362,10 @@ app.post('/sendnotification', (req, res) => {
     });
 });
 
-app.post('/api/report/:id', (req, res) => {
+app.post('/api/report/:id', async (req, res) => {
     console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
-    const { report, plate, driver, brgy } = req.body;
+    const { report, plate, driver, brgy, fcm_token } = req.body; // Include fcm_token in the destructuring
 
     // Validate required fields
     if (!report || report.trim() === '') {
@@ -376,8 +376,11 @@ app.post('/api/report/:id', (req, res) => {
         return res.status(400).json({ error: 'Plate number, driver name, and barangay are required.' });
     }
 
+    // Log the received data
+    console.log('Received data:', req.body);
+
     // Fetch the current violations for the driver
-    connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], (err, rows) => {
+    connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], async (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
@@ -387,8 +390,8 @@ app.post('/api/report/:id', (req, res) => {
             // If the driver doesn't exist, create a new driver record with the report
             const newViolations = report;
             connect.query(
-                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
-                [driverId, plate, driver, brgy, newViolations],
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)', // Include fcm_token here
+                [driverId, plate, driver, brgy, newViolations, fcm_token], // Include fcm_token in the values
                 (insertErr) => {
                     if (insertErr) {
                         console.error('Error inserting new driver:', insertErr);
@@ -413,10 +416,10 @@ app.post('/api/report/:id', (req, res) => {
                 ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
                 : report.trim();
 
-            // Update the violations field in the database
+            // Update the violations field and fcm_token in the database
             connect.query(
-                'UPDATE datalist SET Violations = ? WHERE id = ?',
-                [updatedViolations, driverId],
+                'UPDATE datalist SET Violations = ?, fcm_token = ? WHERE id = ?', // Include fcm_token in the update
+                [updatedViolations, fcm_token, driverId], // Include fcm_token in the values
                 (updateErr) => {
                     if (updateErr) {
                         console.error('Error updating violations:', updateErr);
@@ -438,27 +441,7 @@ app.post('/api/report/:id', (req, res) => {
     });
 });
 
-app.post('/api/report/:driverId', async (req, res) => {
-  const { plate, driver, brgy, report, fcm_token } = req.body;
 
-    console.log('Received data:', req.body);
-
-  try {
-    // Store the report and FCM token in the database
-    await Report.create({
-      driverId: req.params.driverId,
-      plate,
-      driver,
-      brgy,
-      report,
-      fcm_token, // Save the FCM token here
-    });
-
-    res.status(200).json({ message: 'Report submitted successfully' });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to submit report' });
-  }
-});
 
 
 // Start the server 
