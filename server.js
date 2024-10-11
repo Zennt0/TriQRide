@@ -209,34 +209,48 @@ app.delete('/api/list', (req, res) => {
 
 // New endpoint to generate QR code for a record by ID
 app.get('/api/qr/:id', (req, res) => {
-    const id = req.params.id;
-    console.log(`[${new Date().toISOString()}] GET /api/qr/${id} - Request received`);
+    const qrId = req.params.id;
+    const userIp = req.ip; // Get user's IP address
+    const currentTime = moment(); // Get current time using Moment.js
+    const oneDayAgo = moment().subtract(1, 'day').format('YYYY-MM-DD HH:mm:ss');
 
-    connect.query('SELECT * FROM datalist WHERE id = ?', [id], (err, rows) => {
+    // Check if this user has scanned the QR code in the last 24 hours
+    const checkQuery = `
+        SELECT * FROM qr_scan_history 
+        WHERE qr_id = ? AND user_ip = ? AND scanned_at > ?`;
+    
+    connect.query(checkQuery, [qrId, userIp, oneDayAgo], (err, results) => {
         if (err) {
-            console.error(`[${new Date().toISOString()}] Error fetching data for QR code:`, err);
-            return res.status(500).json({ error: 'Failed to fetch data' });
+            console.error('Error checking scan history:', err);
+            return res.status(500).json({ error: 'Error checking scan history' });
         }
 
-        if (rows.length === 0) {
-            console.error(`[${new Date().toISOString()}] Record not found for ID: ${id}`);
-            return res.status(404).json({ error: `No record found for ID: ${id}. Please check and try again.` });
+        if (results.length > 0) {
+            // User has already scanned the QR code within the last 24 hours
+            return res.status(429).json({ msg: 'You can only scan this QR code once per day.' });
         }
 
-        // Generate the QR code URL with the ID
-        const qrData = `https://triqride.onrender.com/api/qr?id=${id}`;
+        // Log the new scan
+        const insertQuery = `
+            INSERT INTO qr_scan_history (qr_id, user_ip, scanned_at) 
+            VALUES (?, ?, ?)`;
         
-        console.log(`[${new Date().toISOString()}] Generating QR code with URL: ${qrData}`);
-
-        // Create QR Code
-        QRCode.toDataURL(qrData, (err, url) => {
+        connect.query(insertQuery, [qrId, userIp, currentTime.format('YYYY-MM-DD HH:mm:ss')], (err) => {
             if (err) {
-                console.error(`[${new Date().toISOString()}] Error generating QR code:`, err);
-                return res.status(500).json({ error: 'Failed to generate QR code' });
+                console.error('Error logging QR scan:', err);
+                return res.status(500).json({ error: 'Error logging scan' });
             }
 
-            console.log(`[${new Date().toISOString()}] QR code generated successfully`);
-            res.json({ qrCode: url });
+            // Generate the QR code as before
+            const qrData = `https://triqride.onrender.com/api/qr?id=${qrId}`;
+            QRCode.toDataURL(qrData, (err, url) => {
+                if (err) {
+                    console.error('Error generating QR code:', err);
+                    return res.status(500).json({ error: 'Failed to generate QR code' });
+                }
+
+                res.json({ qrCode: url });
+            });
         });
     });
 });
