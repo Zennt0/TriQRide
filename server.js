@@ -402,6 +402,10 @@ app.post('/api/report/:id', (req, res) => {
                     }
 
                     console.log(`New driver record created with ID ${driverId} and violation added.`);
+
+                    // Send notification after creating new driver and submitting the report
+                    sendNotification(driverId, plate, report);
+
                     res.json({
                         msg: 'Driver created and report submitted successfully!',
                         driverId,
@@ -430,6 +434,10 @@ app.post('/api/report/:id', (req, res) => {
                     }
 
                     console.log(`Violations updated successfully for driver ID ${driverId}`);
+
+                    // Send notification after updating the report
+                    sendNotification(driverId, plate, report);
+
                     res.json({
                         msg: 'Report submitted successfully!',
                         driverId,
@@ -443,6 +451,27 @@ app.post('/api/report/:id', (req, res) => {
         }
     });
 });
+
+// Helper function to send notification
+function sendNotification(driverId, plate, report) {
+    const notificationPayload = {
+        id: driverId,
+        title: "New Violation Report",
+        body: `A new report has been submitted for vehicle: ${plate} with violation: ${report}`,
+        serverTime: new Date().toLocaleTimeString(),
+        serverDate: new Date().toLocaleDateString()
+    };
+
+    // Call the /sendnotification endpoint to send notification
+    fetch('https://triqride.onrender.com/sendnotification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notificationPayload)
+    })
+    .then(response => response.json())
+    .then(data => console.log('Notification Sent', data))
+    .catch(err => console.error('Error sending notification', err));
+}
 
 
 
