@@ -368,53 +368,48 @@ app.post('/sendnotification', (req, res) => {
 });
 
 
-app.post('/api/report/:id', async (req, res) => {
+app.post('/api/report/:id', (req, res) => {
     console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
-    const { report, plate, driver, brgy, fcm_token, ratings } = req.body;
+    const { report, plate, driver, brgy } = req.body;
 
     // Validate required fields
     if (!report || report.trim() === '') {
         return res.status(400).json({ error: 'Violation report cannot be empty.' });
     }
 
-    if (!plate || !driver || !brgy || !fcm_token || !ratings) {
-        return res.status(400).json({ error: 'Plate number, driver name, barangay, FCM token, and ratings are required.' });
+    if (!plate || !driver || !brgy) {
+        return res.status(400).json({ error: 'Plate number, driver name, and barangay are required.' });
     }
 
-    // Log the received data
-    console.log('Received data:', req.body);
-
-    // Set the current datetime for the report
-    const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
-
-    // Insert a new report entry in the `reportlist` table
-    const insertQuery = `
-        INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `;
-
-    const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
-
-    connect.query(insertQuery, insertValues, (err, result) => {
+    // Fetch the current violations for the driver
+    connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], (err, rows) => {
         if (err) {
-            console.error('Error inserting report:', err);
-            return res.status(500).json({ error: 'Failed to submit report.' });
+            console.error('Error fetching driver data:', err);
+            return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
-        console.log(`Report submitted successfully for driver ID ${driverId}`);
+        if (rows.length === 0) {
+            // If the driver doesn't exist, create a new driver record with the report
+            const newViolations = report;
+            connect.query(
+                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
+                [driverId, plate, driver, brgy, newViolations],
+                (insertErr) => {
+                    if (insertErr) {
+                        console.error('Error inserting new driver:', insertErr);
+                        return res.status(500).json({ error: 'Failed to create driver record.' });
+                    }
 
-        // Respond with success
-        res.json({
-            msg: 'Report submitted successfully!',
-            reportId: result.insertId, // The new report's ID
-            plate,
-            driver,
-            brgy,
-            violations: report.trim(),
-            ratings,
-            report_datetime: reportDateTime
-        });
+                    console.log(`New driver record created with ID ${driverId} and violation added.`);
+                    res.json({
+                        msg: 'Driver created and report submitted successfully!',
+                        driverId,
+                        plate,
+                        driver,
+                        brgy,
+                        violations: newViolations
+                    });
 
         // Auto Notification Logic after report submission
         const notificationPayload = {
