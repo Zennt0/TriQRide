@@ -426,7 +426,7 @@ app.post('/api/report/:id', async (req, res) => {
         };
 
         // Call the /sendnotification endpoint (internally or externally) using native fetch
-        fetch('https://triqride.onrender.com/sendnotification'', {
+        fetch('https://triqride.onrender.com/sendnotification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(notificationPayload)
