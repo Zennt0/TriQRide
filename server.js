@@ -410,27 +410,40 @@ app.post('/api/report/:id', (req, res) => {
                         brgy,
                         violations: newViolations
                     });
+                }
+            );
+        } else {
+            // Driver exists, append the new report to existing violations
+            const currentViolations = rows[0]?.Violations || '';
+            const updatedViolations = currentViolations
+                ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
+                : report.trim();
 
-        // Auto Notification Logic after report submission
-        const notificationPayload = {
-            id: driverId, // This is the user/driver to whom the notification is being sent
-            title: "Notice:",
-            body: `A new report has been submitted for vehicle: ${plate}`,
-            serverTime: new Date().toLocaleTimeString(),
-            serverDate: new Date().toLocaleDateString()
-        };
+            // Update the violations field in the database
+            connect.query(
+                'UPDATE datalist SET Violations = ? WHERE id = ?',
+                [updatedViolations, driverId],
+                (updateErr) => {
+                    if (updateErr) {
+                        console.error('Error updating violations:', updateErr);
+                        return res.status(500).json({ error: 'Failed to update violations.' });
+                    }
 
-        // Call the /sendnotification endpoint (internally or externally) using native fetch
-        fetch('https://triqride.onrender.com/sendnotification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(notificationPayload)
-        })
-        .then(response => response.json())
-        .then(data => console.log('Notification Sent', data))
-        .catch(err => console.error('Error sending notification', err));
+                    console.log(`Violations updated successfully for driver ID ${driverId}`);
+                    res.json({
+                        msg: 'Report submitted successfully!',
+                        driverId,
+                        plate: rows[0].Plate_Number,
+                        driver: rows[0].Driver_name,
+                        brgy: rows[0].Barangay,
+                        violations: updatedViolations
+                    });
+                }
+            );
+        }
     });
 });
+
 
 
 
