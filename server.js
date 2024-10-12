@@ -315,28 +315,31 @@ app.post('/sendnotification', (req, res) => {
     const { id, title, body, serverTime, serverDate } = req.body;
     console.log('POST /sendnotification - Request received', { id, title, body, serverTime, serverDate });
 
+    // Validation checks
     if (!id || !title || !body || !serverTime || !serverDate) {
         console.error('Validation Error: Missing required fields');
         return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
     }
 
+    // Fetch the FCM token from the database
     connect.query('SELECT fcm_token FROM datalist WHERE id = ?', [id], (err, rows) => {
         if (err) {
-            console.error('Error fetching FCM token:', err);
+            console.error('Database Error: Failed to fetch FCM token:', err);
             return res.status(500).json({ error: 'Failed to fetch FCM token' });
         }
 
         if (rows.length === 0) {
             console.error('User not found for ID:', id);
-            return res.status(404).json({ msg: 'User not found' });
+            return res.status(404).json({ error: 'User not found' });
         }
 
         const fcm_token = rows[0]?.fcm_token;
         if (!fcm_token) {
             console.error('FCM token not found for the user with ID:', id);
-            return res.status(404).json({ msg: 'FCM token not found for the user.' });
+            return res.status(404).json({ error: 'FCM token not found for the user.' });
         }
 
+        // Prepare the message to be sent
         const message = {
             notification: {
                 title: title,
@@ -350,94 +353,87 @@ app.post('/sendnotification', (req, res) => {
         };
 
         console.log('Sending notification:', message);
+
+        // Send the notification via FCM
         admin.messaging().send(message)
             .then((response) => {
-                console.log('Notification sent successfully');
-                res.status(200).json({ msg: 'Notification sent successfully' });
+                console.log('Notification sent successfully to user with ID:', id);
+                res.status(200).json({ success: true, msg: 'Notification sent successfully' });
             })
             .catch((error) => {
-                console.error('Error sending notification:', error);
+                console.error('Error sending notification for user with ID:', id, error);
                 res.status(500).json({ error: 'Error sending notification' });
             });
     });
 });
 
+
 app.post('/api/report/:id', async (req, res) => {
     console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
-    const { report, plate, driver, brgy, fcm_token } = req.body; // Include fcm_token in the destructuring
+    const { report, plate, driver, brgy, fcm_token, ratings } = req.body;
 
     // Validate required fields
     if (!report || report.trim() === '') {
         return res.status(400).json({ error: 'Violation report cannot be empty.' });
     }
 
-    if (!plate || !driver || !brgy) {
-        return res.status(400).json({ error: 'Plate number, driver name, and barangay are required.' });
+    if (!plate || !driver || !brgy || !fcm_token || !ratings) {
+        return res.status(400).json({ error: 'Plate number, driver name, barangay, FCM token, and ratings are required.' });
     }
 
     // Log the received data
     console.log('Received data:', req.body);
 
-    // Fetch the current violations for the driver
-    connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], async (err, rows) => {
+    // Set the current datetime for the report
+    const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
+
+    // Insert a new report entry in the `reportlist` table
+    const insertQuery = `
+        INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `;
+
+    const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
+
+    connect.query(insertQuery, insertValues, (err, result) => {
         if (err) {
-            console.error('Error fetching driver data:', err);
-            return res.status(500).json({ error: 'Failed to fetch driver data.' });
+            console.error('Error inserting report:', err);
+            return res.status(500).json({ error: 'Failed to submit report.' });
         }
 
-        if (rows.length === 0) {
-            // If the driver doesn't exist, create a new driver record with the report
-            const newViolations = report;
-            connect.query(
-                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations, fcm_token) VALUES (?, ?, ?, ?, ?, ?)', // Include fcm_token here
-                [driverId, plate, driver, brgy, newViolations, fcm_token], // Include fcm_token in the values
-                (insertErr) => {
-                    if (insertErr) {
-                        console.error('Error inserting new driver:', insertErr);
-                        return res.status(500).json({ error: 'Failed to create driver record.' });
-                    }
+        console.log(`Report submitted successfully for driver ID ${driverId}`);
 
-                    console.log(`New driver record created with ID ${driverId} and violation added.`);
-                    res.json({
-                        msg: 'Driver created and report submitted successfully!',
-                        driverId,
-                        plate,
-                        driver,
-                        brgy,
-                        violations: newViolations
-                    });
-                }
-            );
-        } else {
-            // Driver exists, append the new report to existing violations
-            const currentViolations = rows[0]?.Violations || '';
-            const updatedViolations = currentViolations
-                ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
-                : report.trim();
+        // Respond with success
+        res.json({
+            msg: 'Report submitted successfully!',
+            reportId: result.insertId, // The new report's ID
+            plate,
+            driver,
+            brgy,
+            violations: report.trim(),
+            ratings,
+            report_datetime: reportDateTime
+        });
 
-            // Update the violations field and fcm_token in the database
-            connect.query(
-                'UPDATE datalist SET Violations = ?, fcm_token = ? WHERE id = ?', // Include fcm_token in the update
-                [updatedViolations, fcm_token, driverId], // Include fcm_token in the values
-                (updateErr) => {
-                    if (updateErr) {
-                        console.error('Error updating violations:', updateErr);
-                        return res.status(500).json({ error: 'Failed to update violations.' });
-                    }
+        // Auto Notification Logic after report submission
+        const notificationPayload = {
+            id: driverId, // This is the user/driver to whom the notification is being sent
+            title: "Notice:",
+            body: `A new report has been submitted for vehicle: ${plate}`,
+            serverTime: new Date().toLocaleTimeString(),
+            serverDate: new Date().toLocaleDateString()
+        };
 
-                    console.log(`Violations updated successfully for driver ID ${driverId}`);
-                    res.json({
-                        msg: 'Report submitted successfully!',
-                        driverId,
-                        plate: rows[0].Plate_Number,
-                        driver: rows[0].Driver_name,
-                        brgy: rows[0].Barangay,
-                        violations: updatedViolations
-                    });
-                }
-            );
-        }
+        // Call the /sendnotification endpoint (internally or externally) using native fetch
+        fetch('https://triqride.onrender.com/sendnotification'', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notificationPayload)
+        })
+        .then(response => response.json())
+        .then(data => console.log('Notification Sent', data))
+        .catch(err => console.error('Error sending notification', err));
     });
 });
 
