@@ -57,6 +57,67 @@ app.use((req, res, next) => {
     next();
 });;
 
+// Login endpoint
+app.post('/login', (req, res) => {
+    const { username, password } = req.body;
+
+    connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
+        if (err) {
+            return res.status(500).json({ message: 'Database query error' });
+        }
+
+        if (result.length === 0) {
+            return res.status(400).json({ message: 'Invalid username or password' });
+        }
+
+        const user = result[0];
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        
+        if (!passwordMatch) {
+            return res.status(400).json({ message: 'Invalid username or password' });
+        }
+
+        // Send the full name of the user back to the frontend
+        res.json({ message: 'Login successful', fullname: user.fullname });
+    });
+});
+
+// Create account endpoint
+app.post('/register', async (req, res) => {
+    const { username, fullname, password } = req.body;
+
+    console.log('Registration attempt for username:', username); // Log the username
+
+    connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
+        if (err) {
+            console.error('Database query error:', err); // Log the error
+            return res.status(500).json({ message: 'Database query error' });
+        }
+
+        if (result.length > 0) {
+            console.warn('Username already exists:', username); // Log warning for existing username
+            return res.status(400).json({ message: 'Username already exists' });
+        }
+
+        try {
+            const hashedPassword = await bcrypt.hash(password, 10);
+            const newUser = { username, fullname, password: hashedPassword };
+
+            connect.query('INSERT INTO users SET ?', newUser, (err) => {
+                if (err) {
+                    console.error('Error creating account:', err); // Log the error
+                    return res.status(500).json({ message: 'Error creating account' });
+                }
+                console.log('Account created successfully for username:', username); // Log success message
+                res.status(201).json({ message: 'Account created successfully' });
+            });
+        } catch (error) {
+            console.error('Error during password hashing:', error); // Log any error that occurs while hashing password
+            return res.status(500).json({ message: 'Error creating account' });
+        }
+    });
+});
+
 
 // Validate image types (JPEG, PNG, GIF) and limit file size to 5MB
 const upload = multer({
