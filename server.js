@@ -254,18 +254,25 @@ app.get('/api/list/:id/image', (req, res) => {
 });
 
 app.get('/api/reports', (req, res) => {
+    const searchQuery = req.query.search || '';  // Get the search query from the request
+    
+    // Basic SQL query for searching by Plate_number or Driver_name
     const query = `
         SELECT id, Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime 
         FROM reportlist
+        WHERE Plate_number LIKE ? OR Driver_name LIKE ?
     `;
-    
-    connect.query(query, (err, results) => {
+
+    // Use '%' wildcards for SQL LIKE operator to match partial results
+    const searchValue = `%${searchQuery}%`;
+
+    connect.query(query, [searchValue, searchValue], (err, results) => {
         if (err) {
             console.error('Error fetching reports:', err);
             return res.status(500).json({ error: 'Failed to fetch reports.' });
         }
 
-        res.json(results);  // Return the fetched reports
+        res.json(results);  // Return the filtered reports
     });
 });
 
