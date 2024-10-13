@@ -473,14 +473,18 @@ app.post('/sendnotification', (req, res) => {
 app.post('/api/report/:id', async (req, res) => {
     console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
+
+    // Destructure the request body
     const { report, plate, driver, brgy, fcm_token, ratings } = req.body;
 
     // Validate required fields
     if (!report || report.trim() === '') {
+        console.error('Validation Error: Violation report is empty.');
         return res.status(400).json({ error: 'Violation report cannot be empty.' });
     }
 
     if (!plate || !driver || !brgy || !fcm_token || !ratings) {
+        console.error('Validation Error: Missing required fields.');
         return res.status(400).json({ error: 'Plate number, driver name, barangay, FCM token, and ratings are required.' });
     }
 
@@ -489,22 +493,24 @@ app.post('/api/report/:id', async (req, res) => {
 
     // Set the current datetime for the report
     const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
+    console.log('Report DateTime:', reportDateTime);
 
-    // Insert a new report entry in the `reportlist` table
+    // Prepare the SQL query
     const insertQuery = `
         INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
         VALUES (?, ?, ?, ?, ?, ?)
     `;
-
     const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
 
+    // Insert a new report entry in the `reportlist` table
+    console.log('Executing insert query with values:', insertValues);
     connect.query(insertQuery, insertValues, (err, result) => {
         if (err) {
             console.error('Error inserting report:', err);
             return res.status(500).json({ error: 'Failed to submit report.' });
         }
 
-        console.log(`Report submitted successfully for driver ID ${driverId}`);
+        console.log(`Report submitted successfully for driver ID ${driverId}, report ID: ${result.insertId}`);
 
         // Respond with success
         res.json({
@@ -528,14 +534,22 @@ app.post('/api/report/:id', async (req, res) => {
         };
 
         // Call the /sendnotification endpoint using your backend URL
+        console.log('Sending notification with payload:', notificationPayload);
         fetch('https://triqride.onrender.com/sendnotification', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(notificationPayload)
         })
-        .then(response => response.json())
-        .then(data => console.log('Notification Sent', data))
-        .catch(err => console.error('Error sending notification', err));
+        .then(response => {
+            console.log('Notification Response Status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('Notification Sent', data);
+        })
+        .catch(err => {
+            console.error('Error sending notification', err);
+        });
     });
 });
 
