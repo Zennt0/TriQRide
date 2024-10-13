@@ -527,8 +527,8 @@ app.post('/api/report/:id', async (req, res) => {
         // Auto Notification Logic after report submission
         const notificationPayload = {
             id: driverId, // This is the user/driver to whom the notification is being sent
-            title: "New Violation Report",
-            body: `A new report has been submitted for vehicle: ${plate}`,
+            title: "Report Notice:",
+            body: `Report Submitted To Municipal Office Plate Number: ${plate}`,
             serverTime: new Date().toLocaleTimeString(),
             serverDate: new Date().toLocaleDateString()
         };
