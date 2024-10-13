@@ -472,7 +472,6 @@ app.post('/sendnotification', (req, res) => {
 
 app.post('/api/report/:id', async (req, res) => {
     console.log('Request received for ID:', req.params.id);
-    const driverId = req.params.id;
     const { report, plate, driver, brgy, fcm_token, ratings } = req.body;
 
     // Validate required fields
@@ -487,55 +486,69 @@ app.post('/api/report/:id', async (req, res) => {
     // Log the received data
     console.log('Received data:', req.body);
 
-    // Set the current datetime for the report
-    const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
-
-    // Insert a new report entry in the `reportlist` table
-    const insertQuery = `
-        INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
-        VALUES (?, ?, ?, ?, ?, ?)
-    `;
-
-    const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
-
-    connect.query(insertQuery, insertValues, (err, result) => {
+    // Fetch driver ID from driverlist based on the plate number
+    connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
-            console.error('Error inserting report:', err);
-            return res.status(500).json({ error: 'Failed to submit report.' });
+            console.error('Error fetching driver data:', err);
+            return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
-        console.log(`Report submitted successfully for driver ID ${driverId}`);
+        if (rows.length === 0) {
+            console.error(`User not found for Plate: ${plate} and Driver: ${driver}`);
+            return res.status(404).json({ error: 'User not found for the provided Plate and Driver.' });
+        }
 
-        // Respond with success
-        res.json({
-            msg: 'Report submitted successfully!',
-            reportId: result.insertId, // The new report's ID
-            plate,
-            driver,
-            brgy,
-            violations: report.trim(),
-            ratings,
-            report_datetime: reportDateTime
+        const driverId = rows[0].id; // Get the driver ID from the result
+
+        // Set the current datetime for the report
+        const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
+
+        // Insert a new report entry in the `reportlist` table
+        const insertQuery = `
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
+        const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
+
+        connect.query(insertQuery, insertValues, (err, result) => {
+            if (err) {
+                console.error('Error inserting report:', err);
+                return res.status(500).json({ error: 'Failed to submit report.' });
+            }
+
+            console.log(`Report submitted successfully for driver ID ${driverId}`);
+
+            // Respond with success
+            res.json({
+                msg: 'Report submitted successfully!',
+                reportId: result.insertId,
+                plate,
+                driver,
+                brgy,
+                violations: report.trim(),
+                ratings,
+                report_datetime: reportDateTime
+            });
+
+            // Prepare notification payload
+            const notificationPayload = {
+                id: driverId, // Use the fetched driver ID
+                title: "Report Notice",
+                body: `A new report has been submitted for vehicle: ${plate}`,
+                serverTime: new Date().toLocaleTimeString(),
+                serverDate: new Date().toLocaleDateString()
+            };
+
+            // Call the /sendnotification endpoint
+            fetch('https://triqride.onrender.com/sendnotification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(notificationPayload)
+            })
+            .then(response => response.json())
+            .then(data => console.log('Notification Sent', data))
+            .catch(err => console.error('Error sending notification', err));
         });
-
-        // Auto Notification Logic after report submission
-        const notificationPayload = {
-            id: driverId, // This is the user/driver to whom the notification is being sent
-            title: "Report Notice",
-            body: `A new report has been submitted for vehicle: ${plate}`,
-            serverTime: new Date().toLocaleTimeString(),
-            serverDate: new Date().toLocaleDateString()
-        };
-
-        // Call the /sendnotification endpoint (internally or externally)
-        fetch('https://triqride.onrender.com/sendnotification', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(notificationPayload)
-        })
-        .then(response => response.json())
-        .then(data => console.log('Notification Sent', data))
-        .catch(err => console.error('Error sending notification', err));
     });
 });
 
