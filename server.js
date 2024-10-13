@@ -472,6 +472,7 @@ app.post('/sendnotification', (req, res) => {
 
 app.post('/api/report/:id', async (req, res) => {
     console.log('Request received for ID:', req.params.id);
+    const driverIdFromParams = req.params.id; // The ID from the URL parameters
     const { report, plate, driver, brgy, fcm_token, ratings } = req.body;
 
     // Validate required fields
@@ -486,12 +487,15 @@ app.post('/api/report/:id', async (req, res) => {
     // Log the received data
     console.log('Received data:', req.body);
 
-    // Fetch driver ID from driverlist based on the plate number
+    // Fetch driver ID from driverlist based on the plate number and driver name
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
+
+        // Log the result of the query
+        console.log('Driver Query Result:', rows);
 
         if (rows.length === 0) {
             console.error(`User not found for Plate: ${plate} and Driver: ${driver}`);
@@ -499,9 +503,11 @@ app.post('/api/report/:id', async (req, res) => {
         }
 
         const driverId = rows[0].id; // Get the driver ID from the result
+        console.log(`Driver ID found: ${driverId}`);
 
         // Set the current datetime for the report
         const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
+        console.log(`Report datetime set to: ${reportDateTime}`);
 
         // Insert a new report entry in the `reportlist` table
         const insertQuery = `
@@ -509,6 +515,8 @@ app.post('/api/report/:id', async (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?)
         `;
         const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
+
+        console.log('Inserting report with values:', insertValues);
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
@@ -539,6 +547,8 @@ app.post('/api/report/:id', async (req, res) => {
                 serverDate: new Date().toLocaleDateString()
             };
 
+            console.log('Sending notification with payload:', notificationPayload);
+
             // Call the /sendnotification endpoint
             fetch('https://triqride.onrender.com/sendnotification', {
                 method: 'POST',
@@ -551,38 +561,6 @@ app.post('/api/report/:id', async (req, res) => {
         });
     });
 });
-
-// Helper function to send notification
-function sendNotification(driverId, plate, report) {
-    const notificationPayload = {
-        id: driverId,
-        title: "New Violation Report",
-        body: `A new report has been submitted for vehicle: ${plate} with violation: ${report}`,
-        serverTime: new Intl.DateTimeFormat('en-US', {
-            hour: '2-digit',
-            minute: '2-digit',
-            second: '2-digit',
-            hour12: true,
-            timeZone: 'Asia/Manila' // Replace this with your desired time zone
-        }).format(new Date()),
-        serverDate: new Intl.DateTimeFormat('en-US', {
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-            timeZone: 'Asia/Manila' // Replace this with your desired time zone
-        }).format(new Date())
-    };
-
-    // Call the /sendnotification endpoint to send notification
-    fetch('https://triqride.onrender.com/sendnotification', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(notificationPayload)
-    })
-    .then(response => response.json())
-    .then(data => console.log('Notification Sent', data))
-    .catch(err => console.error('Error sending notification', err));
-}
 
 
 
