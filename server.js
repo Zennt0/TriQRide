@@ -471,41 +471,45 @@ app.post('/sendnotification', (req, res) => {
 
 
 app.post('/api/report/:id', async (req, res) => {
+    console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
-
-    // Destructure and validate the request body
     const { report, plate, driver, brgy, fcm_token, ratings } = req.body;
 
+    // Validate required fields
     if (!report || report.trim() === '') {
         return res.status(400).json({ error: 'Violation report cannot be empty.' });
     }
 
     if (!plate || !driver || !brgy || !fcm_token || !ratings) {
-        return res.status(400).json({ error: 'All fields (plate, driver, barangay, FCM token, and ratings) are required.' });
+        return res.status(400).json({ error: 'Plate number, driver name, barangay, FCM token, and ratings are required.' });
     }
 
+    // Log the received data
+    console.log('Received data:', req.body);
+
+    // Set the current datetime for the report
     const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
 
-    // Prepare the SQL query
+    // Insert a new report entry in the `reportlist` table
     const insertQuery = `
         INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
         VALUES (?, ?, ?, ?, ?, ?)
     `;
+
     const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
 
-    // Insert the report into the database
-    connect.query(insertQuery, insertValues, async (err, result) => {
+    connect.query(insertQuery, insertValues, (err, result) => {
         if (err) {
             console.error('Error inserting report:', err);
             return res.status(500).json({ error: 'Failed to submit report.' });
         }
 
-        console.log(`Report submitted successfully for driver ID ${driverId}, report ID: ${result.insertId}`);
+        console.log(`Report submitted successfully for driver ID ${driverId}`);
 
         // Respond with success
         res.json({
             msg: 'Report submitted successfully!',
-            reportId: result.insertId,
+            reportId: result.insertId, // The new report's ID
             plate,
             driver,
             brgy,
@@ -514,34 +518,24 @@ app.post('/api/report/:id', async (req, res) => {
             report_datetime: reportDateTime
         });
 
-        // Prepare the notification payload
+        // Auto Notification Logic after report submission
         const notificationPayload = {
             id: driverId, // This is the user/driver to whom the notification is being sent
-            title: "Report Notice:",
-            body: `Report Submitted To Municipal Office Plate Number: ${plate}`,
+            title: "Report Notice",
+            body: `A new report has been submitted for vehicle: ${plate}`,
             serverTime: new Date().toLocaleTimeString(),
             serverDate: new Date().toLocaleDateString()
         };
 
-        try {
-            // Send the notification using the /sendnotification endpoint
-            const notificationResponse = await fetch('https://triqride.onrender.com/sendnotification', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(notificationPayload)
-            });
-
-            if (notificationResponse.ok) {
-                const notificationData = await notificationResponse.json();
-                console.log('Notification Sent:', notificationData);
-            } else {
-                console.error('Error sending notification. Status:', notificationResponse.status);
-            }
-        } catch (err) {
-            console.error('Error sending notification:', err);
-        }
+        // Call the /sendnotification endpoint (internally or externally)
+        fetch('https://triqride.onrender.com/sendnotification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notificationPayload)
+        })
+        .then(response => response.json())
+        .then(data => console.log('Notification Sent', data))
+        .catch(err => console.error('Error sending notification', err));
     });
 });
 
