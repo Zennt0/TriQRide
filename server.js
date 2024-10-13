@@ -139,16 +139,15 @@ const upload = multer({
 
 // API Endpoints
 
-// Add a new record with image upload
+// Add a new driver record with image upload (to new driverlist table)
 app.post('/api/list', upload.single('image'), (req, res) => {
-    const { plate, driver, brgy, actions } = req.body;
+    const { plate, driver, brgy } = req.body;
 
-    if (!plate || !driver || !brgy || !actions || !req.file) {
+    if (!plate || !driver || !brgy || !req.file) {
         return res.status(400).json({ error: 'All fields are required, including the image.' });
     }
 
     // Firebase storage reference
-    const bucket = admin.storage().bucket();
     const fileName = Date.now() + path.extname(req.file.originalname);
     const file = bucket.file(`images/${fileName}`);
 
@@ -167,16 +166,16 @@ app.post('/api/list', upload.single('image'), (req, res) => {
 
     stream.on('finish', async () => {
         try {
-            // Make the image public (optional, depends on your use case)
+            // Make the image public (optional)
             await file.makePublic();
 
             // Get the image URL
             const imageUrl = file.publicUrl();
 
-            // Insert record into MySQL
+            // Insert record into MySQL (driverlist table)
             connect.query(
-                'INSERT INTO datalist (Plate_number, Driver_name, Barangay, Violations, image) VALUES (?, ?, ?, ?, ?)',
-                [plate, driver, brgy, actions, imageUrl],
+                'INSERT INTO driverlist (Plate_number, Driver_name, Barangay, Image) VALUES (?, ?, ?, ?)',
+                [plate, driver, brgy, imageUrl],
                 (err) => {
                     if (err) {
                         console.error('Error inserting data into MySQL:', err);
@@ -199,7 +198,7 @@ app.post('/api/list', upload.single('image'), (req, res) => {
 // Get all records with images
 app.get('/api/list', (req, res) => {
     console.log('GET /api/list - Request received');
-    connect.query('SELECT id, Plate_number, Driver_name, Barangay, Violations, image FROM datalist', (err, rows) => {
+    connect.query('SELECT id, Plate_number, Driver_name, Barangay, Image FROM driverlist', (err, rows) => {
         if (err) {
             console.error('Error fetching data:', err);
             return res.status(500).json({ error: 'Failed to fetch data' });
@@ -214,7 +213,7 @@ app.get('/api/list/:id', (req, res) => {
     const id = req.params.id;
     console.log(`GET /api/list/${id} - Request received`);
 
-    connect.query('SELECT * FROM datalist WHERE id = ?', [id], (err, rows) => {
+    connect.query('SELECT * FROM driverlist WHERE id = ?', [id], (err, rows) => {
         if (err) {
             console.error('Error fetching data:', err);
             return res.status(500).json({ error: 'Failed to fetch data' });
@@ -293,19 +292,23 @@ app.get('/api/qr/:id', (req, res) => {
             return res.status(403).json({ error: 'You have already scanned this QR code recently. Please try again later.' });
         }
 
-        // If no recent scan, proceed with QR code generation
-        connect.query('SELECT * FROM datalist WHERE id = ?', [qrId], (err, rows) => {
+        // If no recent scan, proceed with fetching driver data
+        connect.query('SELECT * FROM driverlist WHERE id = ?', [qrId], (err, rows) => {
             if (err) {
                 console.error('Error fetching data for QR code:', err);
-                return res.status(500).json({ error: 'Failed to fetch data' });
+                return res.status(500).json({ error: 'Failed to fetch driver data' });
             }
 
             if (rows.length === 0) {
                 console.error('Record not found for QR code ID:', qrId);
-                return res.status(404).json({ error: `No record found for ID: ${qrId}.` });
+                return res.status(404).json({ error: `No driver record found for ID: ${qrId}.` });
             }
 
+            const driver = rows[0]; // Assuming only one record is returned
+
+            // Data for the QR code (for example, linking to driver details page or API)
             const qrData = `https://triqride.onrender.com/api/qr?id=${qrId}`;
+
             QRCode.toDataURL(qrData, (err, url) => {
                 if (err) {
                     console.error('Error generating QR code:', err);
@@ -321,7 +324,17 @@ app.get('/api/qr/:id', (req, res) => {
                     }
 
                     console.log('QR code generated and scan recorded successfully');
-                    res.json({ qrCode: url });
+                    res.json({
+                        qrCode: url,
+                        driver: {
+                            id: driver.id,
+                            plate_number: driver.Plate_number,
+                            driver_name: driver.Driver_name,
+                            barangay: driver.Barangay,
+                            image: driver.Image,
+                            created_at: driver.created_at
+                        }
+                    });
                 });
             });
         });
@@ -332,10 +345,15 @@ app.get('/api/qr', (req, res) => {
     console.log(`[${new Date().toISOString()}] GET /api/qr - Request received`);
     console.log('Request Query Params:', req.query);
 
-    const { plate, driver, barangay, violations } = req.query;
+    const { plate, driver, barangay } = req.query;
 
-    const query = `SELECT * FROM datalist WHERE Plate_number = ? AND Driver_name = ? AND Barangay = ? AND Violations = ?`;
-    connect.query(query, [plate, driver, barangay, violations], (err, rows) => {
+    // Check for required parameters
+    if (!plate || !driver || !barangay) {
+        return res.status(400).json({ error: 'Missing required query parameters: plate, driver, barangay' });
+    }
+
+    const query = `SELECT * FROM driverlist WHERE Plate_number = ? AND Driver_name = ? AND Barangay = ?`;
+    connect.query(query, [plate, driver, barangay], (err, rows) => {
         if (err) {
             console.error(`[${new Date().toISOString()}] Error executing query:`, err);
             return res.status(500).json({ error: 'Database query error' });
@@ -432,87 +450,72 @@ app.post('/sendnotification', (req, res) => {
 });
 
 
-app.post('/api/report/:id', (req, res) => {
+app.post('/api/report/:id', async (req, res) => {
     console.log('Request received for ID:', req.params.id);
     const driverId = req.params.id;
-    const { report, plate, driver, brgy } = req.body;
+    const { report, plate, driver, brgy, fcm_token, ratings } = req.body;
 
     // Validate required fields
     if (!report || report.trim() === '') {
         return res.status(400).json({ error: 'Violation report cannot be empty.' });
     }
 
-    if (!plate || !driver || !brgy) {
-        return res.status(400).json({ error: 'Plate number, driver name, and barangay are required.' });
+    if (!plate || !driver || !brgy || !fcm_token || !ratings) {
+        return res.status(400).json({ error: 'Plate number, driver name, barangay, FCM token, and ratings are required.' });
     }
 
-    // Fetch the current violations for the driver
-    connect.query('SELECT * FROM datalist WHERE id = ?', [driverId], (err, rows) => {
+    // Log the received data
+    console.log('Received data:', req.body);
+
+    // Set the current datetime for the report
+    const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' '); // MySQL DATETIME format
+
+    // Insert a new report entry in the `reportlist` table
+    const insertQuery = `
+        INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `;
+
+    const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
+
+    connect.query(insertQuery, insertValues, (err, result) => {
         if (err) {
-            console.error('Error fetching driver data:', err);
-            return res.status(500).json({ error: 'Failed to fetch driver data.' });
+            console.error('Error inserting report:', err);
+            return res.status(500).json({ error: 'Failed to submit report.' });
         }
 
-        if (rows.length === 0) {
-            // If the driver doesn't exist, create a new driver record with the report
-            const newViolations = report;
-            connect.query(
-                'INSERT INTO datalist (id, Plate_Number, Driver_name, Barangay, Violations) VALUES (?, ?, ?, ?, ?)',
-                [driverId, plate, driver, brgy, newViolations],
-                (insertErr) => {
-                    if (insertErr) {
-                        console.error('Error inserting new driver:', insertErr);
-                        return res.status(500).json({ error: 'Failed to create driver record.' });
-                    }
+        console.log(`Report submitted successfully for driver ID ${driverId}`);
 
-                    console.log(`New driver record created with ID ${driverId} and violation added.`);
+        // Respond with success
+        res.json({
+            msg: 'Report submitted successfully!',
+            reportId: result.insertId, // The new report's ID
+            plate,
+            driver,
+            brgy,
+            violations: report.trim(),
+            ratings,
+            report_datetime: reportDateTime
+        });
 
-                    // Send notification after creating new driver and submitting the report
-                    sendNotification(driverId, plate, report);
+        // Auto Notification Logic after report submission
+        const notificationPayload = {
+            id: driverId, // This is the user/driver to whom the notification is being sent
+            title: "New Violation Report",
+            body: `A new report has been submitted for vehicle: ${plate}`,
+            serverTime: new Date().toLocaleTimeString(),
+            serverDate: new Date().toLocaleDateString()
+        };
 
-                    res.json({
-                        msg: 'Driver created and report submitted successfully!',
-                        driverId,
-                        plate,
-                        driver,
-                        brgy,
-                        violations: newViolations
-                    });
-                }
-            );
-        } else {
-            // Driver exists, append the new report to existing violations
-            const currentViolations = rows[0]?.Violations || '';
-            const updatedViolations = currentViolations
-                ? `${currentViolations.trim()}; ${report.trim()}` // Trim to avoid extra spaces
-                : report.trim();
-
-            // Update the violations field in the database
-            connect.query(
-                'UPDATE datalist SET Violations = ? WHERE id = ?',
-                [updatedViolations, driverId],
-                (updateErr) => {
-                    if (updateErr) {
-                        console.error('Error updating violations:', updateErr);
-                        return res.status(500).json({ error: 'Failed to update violations.' });
-                    }
-
-                    console.log(`Violations updated successfully for driver ID ${driverId}`);
-
-                    // Send notification after updating the report
-                    sendNotification(driverId, plate, report);
-
-                    res.json({
-                        msg: 'Report submitted successfully!',
-                        driverId,
-                        plate: rows[0].Plate_Number,
-                        driver: rows[0].Driver_name,
-                        brgy: rows[0].Barangay,
-                        violations: updatedViolations
-                    });
-                }
-            );
-        }
+        // Call the /sendnotification endpoint using your backend URL
+        fetch('https://triqride.onrender.com/sendnotification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(notificationPayload)
+        })
+        .then(response => response.json())
+        .then(data => console.log('Notification Sent', data))
+        .catch(err => console.error('Error sending notification', err));
     });
 });
 
