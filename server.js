@@ -254,25 +254,22 @@ app.get('/api/list/:id/image', (req, res) => {
 });
 
 app.get('/api/reports', (req, res) => {
-    const searchQuery = req.query.search || '';  // Get the search query from the request
-    
-    // Basic SQL query for searching by Plate_number or Driver_name
-    const query = `
-        SELECT id, Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime 
-        FROM reportlist
-        WHERE Plate_number LIKE ? OR Driver_name LIKE ?
-    `;
+    const searchTerm = req.query.search;  // Get the search query parameter
 
-    // Use '%' wildcards for SQL LIKE operator to match partial results
-    const searchValue = `%${searchQuery}%`;
+    let query = `SELECT * FROM reportlist`;  // Base query to fetch all reports
 
-    connect.query(query, [searchValue, searchValue], (err, results) => {
+    // If a search term is provided, modify the query for exact match on Plate_number
+    if (searchTerm) {
+        query += ` WHERE Plate_number = ?`;  // Exact match on franchise number (Plate_number)
+    }
+
+    connect.query(query, [searchTerm], (err, results) => {
         if (err) {
             console.error('Error fetching reports:', err);
             return res.status(500).json({ error: 'Failed to fetch reports.' });
         }
 
-        res.json(results);  // Return the filtered reports
+        res.json(results);  // Return the fetched reports
     });
 });
 
