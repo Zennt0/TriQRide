@@ -574,7 +574,6 @@ function sendNotification(driverId, plate, report) {
 
 
 
-
 // Start the server 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
