@@ -253,6 +253,22 @@ app.get('/api/list/:id/image', (req, res) => {
     });
 });
 
+// Fetch all reports from the reportlist table
+app.get('/api/reports', (req, res) => {
+    const query = `SELECT * FROM reportlist`;  // Adjust the fields if needed (e.g., specify Plate_number, Driver_name, etc.)
+    
+    // Execute the SQL query to fetch all reports
+    connect.query(query, (err, results) => {
+        if (err) {
+            console.error('Error fetching reports:', err);
+            return res.status(500).json({ error: 'Failed to fetch reports.' });
+        }
+
+        // Send back the fetched reports as a JSON response
+        res.json(results);
+    });
+});
+
 // Delete a record by ID
 app.delete('/api/list', (req, res) => {
     const { id } = req.body;
