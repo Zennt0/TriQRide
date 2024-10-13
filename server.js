@@ -1,13 +1,16 @@
 const express = require('express');
 const cors = require('cors');
 const path = require('path');
+const bcrypt = require('bcrypt');
 const mysql = require('mysql');
 const moment = require('moment');
+const bodyParser = require('body-parser');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
-const QRCode = require('qrcode'); 
-const multer = require('multer'); 
+const QRCode = require('qrcode');
+const multer = require('multer');
 const fs = require('fs');
+
 
 const app = express();
 const PORT = 4500;
