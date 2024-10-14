@@ -258,12 +258,12 @@ app.get('/api/reports', (req, res) => {
 
     let query = `SELECT * FROM reportlist`;  // Base query to fetch all reports
 
-    // If a search term is provided, modify the query for exact match on Plate_number
+    // If a search term is provided, modify the query to search for matching Plate_number
     if (searchTerm) {
-        query += ` WHERE Plate_number = ?`;  // Exact match on franchise number (Plate_number)
+        query += ` WHERE Plate_number LIKE ?`;  // Use LIKE for partial matches
     }
 
-    connect.query(query, [searchTerm], (err, results) => {
+    connect.query(query, [`%${searchTerm}%`], (err, results) => {
         if (err) {
             console.error('Error fetching reports:', err);
             return res.status(500).json({ error: 'Failed to fetch reports.' });
