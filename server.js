@@ -489,7 +489,7 @@ app.post('/api/report/:id', async (req, res) => {
             return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
         }
 
-        const driverId = rows[0].id;
+        const driverId = rows[0].id; // Fetch driver ID for the notification payload
 
         // Set the current datetime for the report
         const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -520,11 +520,12 @@ app.post('/api/report/:id', async (req, res) => {
 
             // After report submission, send the notification using the `fcm_token`
             const notificationPayload = {
+                id: driverId,  // Ensure the 'id' field is included
                 title: "Report Notice",
                 body: `A new report has been submitted for vehicle: ${plate}`,
-                fcm_token: fcm_token,  // Use the fcm_token from the report
                 serverTime: new Date().toLocaleTimeString(),
-                serverDate: new Date().toLocaleDateString()
+                serverDate: new Date().toLocaleDateString(),
+                fcm_token: fcm_token  // Use the fcm_token from the report
             };
 
             console.log('Sending notification with payload:', notificationPayload);
