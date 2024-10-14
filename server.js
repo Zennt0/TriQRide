@@ -478,77 +478,83 @@ app.post('/api/report/:id', async (req, res) => {
         return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
     }
 
-    console.log("Received report for Plate:", plate, "Driver:", driver);
+    // Set the current datetime for the report
+    const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-    // Check if driver exists in `driverlist`
-    connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
+    // Insert a new report entry in the `reportlist` table
+    const insertQuery = `
+        INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
+        VALUES (?, ?, ?, ?, ?, ?)
+    `;
+    const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
+
+    connect.query(insertQuery, insertValues, (err, result) => {
         if (err) {
-            console.error('Error fetching driver data:', err);
-            return res.status(500).json({ error: 'Failed to fetch driver data.' });
+            console.error('Error inserting report:', err);
+            return res.status(500).json({ error: 'Failed to submit report.' });
         }
 
-        console.log("Driver query result:", rows);
-
-        if (rows.length === 0) {
-            return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
-        }
-
-        const driverId = rows[0].id; // Fetch driver ID
-        console.log("Driver found with ID:", driverId);
-
-        // Set the current datetime for the report
-        const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
-
-        // Insert a new report entry in the `reportlist` table
-        const insertQuery = `
-            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
-            VALUES (?, ?, ?, ?, ?, ?)
+        // Fetch the driverId and corresponding fcm_token from reportlist
+        const selectQuery = `
+            SELECT d.id as driverId, r.fcm_token
+            FROM driverlist d
+            JOIN reportlist r ON d.Plate_number = r.Plate_number
+            WHERE d.id = ? AND r.Driver_name = ?
         `;
-        const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
-
-        connect.query(insertQuery, insertValues, (err, result) => {
+        connect.query(selectQuery, [result.insertId, driver], (err, rows) => {
             if (err) {
-                console.error('Error inserting report:', err);
-                return res.status(500).json({ error: 'Failed to submit report.' });
+                console.error('Error fetching driver and FCM token:', err);
+                return res.status(500).json({ error: 'Failed to fetch driver or FCM token.' });
             }
 
-            console.log('Report submitted successfully:', result.insertId);
+            if (rows.length === 0) {
+                return res.status(404).json({ error: 'User not found for the provided driver ID.' });
+            }
+
+            const { driverId, fcm_token } = rows[0];  // Extract the fcm_token here
+            if (!fcm_token) {
+                return res.status(404).json({ error: 'No FCM token found for the user.' });
+            }
 
             // Prepare notification payload
             const notificationPayload = {
-                id: driverId,  // Use driverId for tracking
+                id: driverId,
                 title: "Report Notice",
                 body: `A new report has been submitted for vehicle: ${plate}`,
                 serverTime: new Date().toLocaleTimeString(),
                 serverDate: new Date().toLocaleDateString(),
-                fcm_token: fcm_token  // Use the fcm_token from the report
+                fcm_token: fcm_token
             };
 
-            // Ensure no missing fields in notification payload
+            // Validate notification fields
             if (!notificationPayload.id || !notificationPayload.title || !notificationPayload.body || 
                 !notificationPayload.serverTime || !notificationPayload.serverDate || !notificationPayload.fcm_token) {
                 console.error('Validation Error: Missing required fields');
-                return;
+                return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
             }
-            console.log('Driver ID:', driverId);
-            console.log('FCM Token being used for notification:', fcm_token);
+
             console.log('Sending notification with payload:', notificationPayload);
 
-            // Send the notification after report submission
+            // Send the notification
             fetch('https://triqride.onrender.com/sendnotification', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(notificationPayload)
-})
-.then(response => response.json())
-.then(data => {
-    if (data.error) {
-        console.error('Notification error:', data.error);
-    } else {
-        console.log('Notification Sent:', data);
-    }
-})
-.catch(err => console.error('Error sending notification:', err));
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(notificationPayload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                console.log('Notification Sent', data);
+                res.json({
+                    msg: 'Report submitted and notification sent successfully!',
+                    reportId: result.insertId,
+                    plate,
+                    driver,
+                    violations: report.trim(),
+                    ratings,
+                    report_datetime: reportDateTime
+                });
+            })
+            .catch(err => console.error('Error sending notification', err));
         });
     });
 });
