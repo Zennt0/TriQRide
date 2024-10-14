@@ -519,37 +519,42 @@ app.post('/api/report/:id', async (req, res) => {
             });
 
             // Fetch fcm_token to send notification
-            connect.query('SELECT fcm_token FROM reportlist WHERE Plate_number = ? AND Driver_name = ? ORDER BY report_datetime DESC LIMIT 1', 
-            [plate, driver], (err, reportRows) => {
-                if (err || reportRows.length === 0) {
-                    console.error('Failed to fetch FCM token for notification:', err);
-                    return;
-                }
+            connect.query('SELECT fcm_token FROM reportlist WHERE Plate_number = ? AND Driver_name = ? ORDER BY report_datetime DESC LIMIT 1',
+                [plate, driver], (err, reportRows) => {
+                    if (err || reportRows.length === 0) {
+                        console.error('Failed to fetch FCM token for notification:', err);
+                        return;
+                    }
 
-                const fetchedFcmToken = reportRows[0].fcm_token;
+                    const fetchedFcmToken = reportRows[0].fcm_token;
 
-                // Prepare the notification payload
-                const notificationPayload = {
-                    id: driverId,
-                    title: "Report Notice",
-                    body: `Report Submitted To Municipal Office Plate Number: ${plate}`,
-                    fcm_token: fetchedFcmToken, // Ensure correct fcm_token is used
-                    serverTime: new Date().toLocaleTimeString(),
-                    serverDate: new Date().toLocaleDateString()
-                };
+                    // Prepare the notification payload
+                    const notificationPayload = {
+                        id: driverId,
+                        fcm_token: fetchedFcmToken, // Make sure this is being sent
+                        title: "Report Notice",
+                        body: `A new report has been submitted for vehicle: ${plate}`,
+                        serverTime: new Date().toLocaleTimeString(),
+                        serverDate: new Date().toLocaleDateString()
+                    };
 
-                console.log('Sending notification with payload:', notificationPayload);
+                    console.log('Sending notification with payload:', notificationPayload);
 
-                // Send the notification after report submission
-                fetch('https://triqride.onrender.com/sendnotification', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(notificationPayload)
-                })
-                .then(response => response.json())
-                .then(data => console.log('Notification Sent', data))
-                .catch(err => console.error('Error sending notification', err));
-            });
+                    // Send the notification after report submission
+                    fetch('https://triqride.onrender.com/sendnotification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(notificationPayload)
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('Notification Sent', data);
+                        })
+                        .catch(err => {
+                            console.error('Error sending notification', err);  // Log the exact error
+                            console.log('Payload that caused the error:', notificationPayload); // Log the payload too
+                        });
+                });
         });
     });
 });
