@@ -273,6 +273,26 @@ app.get('/api/reports', (req, res) => {
     });
 });
 
+app.get('/api/drivers', (req, res) => {
+    const searchTerm = req.query.search; // Get the search query parameter
+
+    let query = `SELECT * FROM driverlist`;  // Base query to fetch all drivers
+
+    // If a search term is provided, modify the query to search for matching Plate_number
+    if (searchTerm) {
+        query += ` WHERE Plate_number LIKE ?`;  // Use LIKE for partial matches
+    }
+
+    connect.query(query, [`%${searchTerm}%`], (err, results) => {
+        if (err) {
+            console.error('Error fetching drivers:', err);
+            return res.status(500).json({ error: 'Failed to fetch drivers.' });
+        }
+
+        res.json(results);  // Return the fetched drivers
+    });
+});
+
 // Delete a record by ID
 app.delete('/api/list', (req, res) => {
     const { id } = req.body;
