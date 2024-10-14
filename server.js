@@ -478,6 +478,8 @@ app.post('/api/report/:id', async (req, res) => {
         return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
     }
 
+    console.log("Received report for Plate:", plate, "Driver:", driver);
+
     // Check if driver exists in `driverlist`
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
@@ -485,11 +487,14 @@ app.post('/api/report/:id', async (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
+        console.log("Driver query result:", rows);
+
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
         }
 
         const driverId = rows[0].id; // Fetch driver ID
+        console.log("Driver found with ID:", driverId);
 
         // Set the current datetime for the report
         const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -507,16 +512,7 @@ app.post('/api/report/:id', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
-            // Report submitted successfully
-            res.json({
-                msg: 'Report submitted successfully!',
-                reportId: result.insertId,
-                plate,
-                driver,
-                violations: report.trim(),
-                ratings,
-                report_datetime: reportDateTime
-            });
+            console.log('Report submitted successfully:', result.insertId);
 
             // Prepare notification payload
             const notificationPayload = {
@@ -551,7 +547,6 @@ app.post('/api/report/:id', async (req, res) => {
         });
     });
 });
-
 
 
 
