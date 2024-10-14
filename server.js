@@ -489,7 +489,7 @@ app.post('/api/report/:id', async (req, res) => {
             return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
         }
 
-        const driverId = rows[0].id; // Fetch driver ID but it's not used in the notification
+        const driverId = rows[0].id; // Fetch driver ID
 
         // Set the current datetime for the report
         const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
@@ -518,14 +518,22 @@ app.post('/api/report/:id', async (req, res) => {
                 report_datetime: reportDateTime
             });
 
-            // After report submission, send the notification using the `fcm_token`
+            // Prepare notification payload
             const notificationPayload = {
+                id: driverId,  // Use driverId for tracking
                 title: "Report Notice",
                 body: `A new report has been submitted for vehicle: ${plate}`,
                 serverTime: new Date().toLocaleTimeString(),
                 serverDate: new Date().toLocaleDateString(),
-                fcm_token: fcm_token  // Use the fcm_token from the report to notify the reporter
+                fcm_token: fcm_token  // Use the fcm_token from the report
             };
+
+            // Ensure no missing fields in notification payload
+            if (!notificationPayload.id || !notificationPayload.title || !notificationPayload.body || 
+                !notificationPayload.serverTime || !notificationPayload.serverDate || !notificationPayload.fcm_token) {
+                console.error('Validation Error: Missing required fields');
+                return;
+            }
 
             console.log('Sending notification with payload:', notificationPayload);
 
