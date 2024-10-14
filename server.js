@@ -465,7 +465,7 @@ app.post('/api/report/:id', async (req, res) => {
             const notificationPayload = {
                 id: driverId,  // Use driverId for tracking
                 title: "Report Notice",
-                body: `A new report has been submitted for vehicle: ${plate}`,
+                body: `Report Submitted To Municipal Office Franchise Number: ${plate}`,
                 serverTime: new Date().toLocaleTimeString(),
                 serverDate: new Date().toLocaleDateString(),
                 fcm_token: fcm_token  // Use the fcm_token from the report
