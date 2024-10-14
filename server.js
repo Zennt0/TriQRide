@@ -497,28 +497,58 @@ app.post('/api/report/:id', async (req, res) => {
 
 // New route: Send notification to a user
 app.post('/sendnotification', (req, res) => {
-    const { id, title, body, serverTime, serverDate, fcm_token } = req.body;
+    const { id, title, body, serverTime, serverDate } = req.body;
+    console.log('POST /sendnotification - Request received', { id, title, body, serverTime, serverDate });
 
-    // Validate required fields
-    if (!id || !title || !body || !serverTime || !serverDate || !fcm_token) {
-        return res.status(400).json({ error: 'Missing required fields for notification.' });
+    // Validation checks
+    if (!id || !title || !body || !serverTime || !serverDate) {
+        console.error('Validation Error: Missing required fields');
+        return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
     }
 
-    // Placeholder for sending notification logic (e.g., using Firebase Cloud Messaging)
-    console.log('Notification Payload:', req.body);
-
-    // Simulate notification success response
-    res.status(200).json({
-        success: true,
-        message: 'Notification sent successfully!',
-        data: {
-            id,
-            title,
-            body,
-            serverTime,
-            serverDate,
-            fcm_token
+    // Fetch the FCM token from the reportlist based on the driver ID
+    connect.query('SELECT fcm_token FROM reportlist WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)', [id], (err, rows) => {
+        if (err) {
+            console.error('Database Error: Failed to fetch FCM token:', err);
+            return res.status(500).json({ error: 'Failed to fetch FCM token' });
         }
+
+        if (rows.length === 0) {
+            console.error('No report found for driver ID:', id);
+            return res.status(404).json({ error: 'No report found for the provided driver ID' });
+        }
+
+        const fcm_token = rows[0]?.fcm_token;
+        if (!fcm_token) {
+            console.error('FCM token not found for the driver ID:', id);
+            return res.status(404).json({ error: 'FCM token not found for the provided driver ID' });
+        }
+
+        // Prepare the message to be sent
+        const message = {
+            notification: {
+                title: title,
+                body: body,
+            },
+            token: fcm_token,
+            data: {
+                serverTime: serverTime,
+                serverDate: serverDate,
+            },
+        };
+
+        console.log('Sending notification:', message);
+
+        // Send the notification via FCM
+        admin.messaging().send(message)
+            .then((response) => {
+                console.log('Notification sent successfully to driver ID:', id);
+                res.status(200).json({ success: true, msg: 'Notification sent successfully' });
+            })
+            .catch((error) => {
+                console.error('Error sending notification for driver ID:', id, error);
+                res.status(500).json({ error: 'Error sending notification' });
+            });
     });
 });
 
