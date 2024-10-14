@@ -471,39 +471,56 @@ app.post('/api/report/:id', async (req, res) => {
                 fcm_token: fcm_token  // Use the fcm_token from the report
             };
 
-            // Ensure no missing fields in notification payload
-            if (!notificationPayload.id || !notificationPayload.title || !notificationPayload.body || 
-                !notificationPayload.serverTime || !notificationPayload.serverDate || !notificationPayload.fcm_token) {
-                console.error('Validation Error: Missing required fields');
-                return;
-            }
-
-            console.log('Sending notification with payload:', notificationPayload);
-
             // Send the notification after report submission
             fetch('https://triqride.onrender.com/sendnotification', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(notificationPayload)
-})
-.then(response => {
-    if (!response.ok) {
-        // Log the status code and response if it's not OK
-        return response.text().then(text => {
-            console.error('Error response:', text);
-            throw new Error(`Failed to send notification. Status: ${response.status}`);
-        });
-    }
-    return response.json();  // Attempt to parse JSON if the response is OK
-})
-.then(data => {
-    console.log('Notification Sent', data);
-})
-.catch(err => console.error('Error sending notification', err));
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(notificationPayload)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Log the status code and response if it's not OK
+                    return response.text().then(text => {
+                        console.error('Error response:', text);
+                        throw new Error(`Failed to send notification. Status: ${response.status}`);
+                    });
+                }
+                return response.json();  // Attempt to parse JSON if the response is OK
+            })
+            .then(data => {
+                console.log('Notification Sent', data);
+            })
+            .catch(err => console.error('Error sending notification', err));
         });
     });
 });
 
+// New route: Send notification to a user
+app.post('/sendnotification', (req, res) => {
+    const { id, title, body, serverTime, serverDate, fcm_token } = req.body;
+
+    // Validate required fields
+    if (!id || !title || !body || !serverTime || !serverDate || !fcm_token) {
+        return res.status(400).json({ error: 'Missing required fields for notification.' });
+    }
+
+    // Placeholder for sending notification logic (e.g., using Firebase Cloud Messaging)
+    console.log('Notification Payload:', req.body);
+
+    // Simulate notification success response
+    res.status(200).json({
+        success: true,
+        message: 'Notification sent successfully!',
+        data: {
+            id,
+            title,
+            body,
+            serverTime,
+            serverDate,
+            fcm_token
+        }
+    });
+});
 
 
 // Start the server 
