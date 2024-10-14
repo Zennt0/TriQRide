@@ -482,15 +482,24 @@ app.post('/api/report/:id', async (req, res) => {
 
             // Send the notification after report submission
             fetch('https://triqride.onrender.com/sendnotification', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(notificationPayload)
-            })
-            .then(response => response.json())
-            .then(data => {
-                console.log('Notification Sent', data);
-            })
-            .catch(err => console.error('Error sending notification', err));
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(notificationPayload)
+})
+.then(response => {
+    if (!response.ok) {
+        // Log the status code and response if it's not OK
+        return response.text().then(text => {
+            console.error('Error response:', text);
+            throw new Error(`Failed to send notification. Status: ${response.status}`);
+        });
+    }
+    return response.json();  // Attempt to parse JSON if the response is OK
+})
+.then(data => {
+    console.log('Notification Sent', data);
+})
+.catch(err => console.error('Error sending notification', err));
         });
     });
 });
