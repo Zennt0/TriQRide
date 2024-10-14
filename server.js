@@ -478,27 +478,32 @@ app.post('/api/report/:id', async (req, res) => {
         return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
     }
 
-    // Check if driver exists in driverlist
+    console.log("Received report for Plate:", plate, "Driver:", driver);
+
+    // Check if driver exists in `driverlist`
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
             return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
+        console.log("Driver query result:", rows);
+
         if (rows.length === 0) {
             return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
         }
 
         const driverId = rows[0].id; // Fetch driver ID
+        console.log("Driver found with ID:", driverId);
 
         // Set the current datetime for the report
         const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-        // Insert a new report entry in the reportlist table
-        const insertQuery = 
+        // Insert a new report entry in the `reportlist` table
+        const insertQuery = `
             INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
             VALUES (?, ?, ?, ?, ?, ?)
-        ;
+        `;
         const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
 
         connect.query(insertQuery, insertValues, (err, result) => {
@@ -507,22 +512,13 @@ app.post('/api/report/:id', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
-            // Report submitted successfully
-            res.json({
-                msg: 'Report submitted successfully!',
-                reportId: result.insertId,
-                plate,
-                driver,
-                violations: report.trim(),
-                ratings,
-                report_datetime: reportDateTime
-            });
+            console.log('Report submitted successfully:', result.insertId);
 
             // Prepare notification payload
             const notificationPayload = {
                 id: driverId,  // Use driverId for tracking
                 title: "Report Notice",
-                body: A new report has been submitted for vehicle: ${plate},
+                body: `A new report has been submitted for vehicle: ${plate}`,
                 serverTime: new Date().toLocaleTimeString(),
                 serverDate: new Date().toLocaleDateString(),
                 fcm_token: fcm_token  // Use the fcm_token from the report
