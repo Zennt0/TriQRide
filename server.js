@@ -412,63 +412,6 @@ app.post('/api/token', (req, res) => {
     });
 });
 
-// Send notification endpoint
-app.post('/sendnotification', (req, res) => {
-    const { id, title, body, serverTime, serverDate } = req.body;
-    console.log('POST /sendnotification - Request received', { id, title, body, serverTime, serverDate });
-
-    // Validation checks
-    if (!id || !title || !body || !serverTime || !serverDate) {
-        console.error('Validation Error: Missing required fields');
-        return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
-    }
-
-    // Fetch the FCM token from the database
-    connect.query('SELECT fcm_token FROM datalist WHERE id = ?', [id], (err, rows) => {
-        if (err) {
-            console.error('Database Error: Failed to fetch FCM token:', err);
-            return res.status(500).json({ error: 'Failed to fetch FCM token' });
-        }
-
-        if (rows.length === 0) {
-            console.error('User not found for ID:', id);
-            return res.status(404).json({ error: 'User not found' });
-        }
-
-        const fcm_token = rows[0]?.fcm_token;
-        if (!fcm_token) {
-            console.error('FCM token not found for the user with ID:', id);
-            return res.status(404).json({ error: 'FCM token not found for the user.' });
-        }
-
-        // Prepare the message to be sent
-        const message = {
-            notification: {
-                title: title,
-                body: body,
-            },
-            token: fcm_token,
-            data: {
-                serverTime: serverTime,
-                serverDate: serverDate,
-            },
-        };
-
-        console.log('Sending notification:', message);
-
-        // Send the notification via FCM
-        admin.messaging().send(message)
-            .then((response) => {
-                console.log('Notification sent successfully to user with ID:', id);
-                res.status(200).json({ success: true, msg: 'Notification sent successfully' });
-            })
-            .catch((error) => {
-                console.error('Error sending notification for user with ID:', id, error);
-                res.status(500).json({ error: 'Error sending notification' });
-            });
-    });
-});
-
 
 app.post('/api/report/:id', async (req, res) => {
     const { plate, driver, report, fcm_token, ratings } = req.body;
