@@ -253,31 +253,25 @@ app.get('/api/list/:id/image', (req, res) => {
     });
 });
 
-app.get('/api/reports', (req, res) => {
-    const searchTerm = req.query.search;  // Get the search query parameter
+app.get('/api/drivers', (req, res) => {
+    const searchTerm = req.query.search; // Get the search query parameter
 
-    // Base query to fetch the owner, franchise, and violations (counted)
-    let query = `SELECT Driver_name AS owner, Plate_number AS franchise, Violations FROM reportlist`;
+    // Base query to fetch all drivers
+    let query = `SELECT * FROM driverlist`;
 
     // If a search term is provided, modify the query to search for matching Plate_number
     if (searchTerm) {
-        query += ` WHERE Plate_number LIKE ?`;  // Use LIKE for partial matches
+        query += ` WHERE Plate_number LIKE ?`; // Modify query to include the search condition
     }
 
-    connect.query(query, [`%${searchTerm}%`], (err, results) => {
+    // Execute the query
+    connect.query(query, searchTerm ? [`%${searchTerm}%`] : [], (err, results) => {
         if (err) {
-            console.error('Error fetching reports:', err);
-            return res.status(500).json({ error: 'Failed to fetch reports.' });
+            console.error('Error fetching drivers:', err);
+            return res.status(500).json({ error: 'Failed to fetch drivers.' });
         }
 
-        // Process the results to include total number of violations
-        const processedResults = results.map((row) => ({
-            owner: row.owner,
-            franchise: row.franchise,
-            totalViolations: row.Violations ? row.Violations.split(',').length : 0  // Count violations by splitting the string
-        }));
-
-        res.json(processedResults);  // Return the processed reports
+        res.json(results);  // Return the fetched drivers
     });
 });
 
