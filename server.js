@@ -281,10 +281,10 @@ app.get('/api/reports', (req, res) => {
     });
 });
 
-app.get('/api/drivers', (req, res) => {
-    const searchTerm = req.query.search; // Get the search query parameter
+app.get('/api/reports', (req, res) => {
+    const searchTerm = req.query.search;  // Get the search query parameter
 
-    let query = `SELECT * FROM driverlist`;  // Base query to fetch all drivers
+    let query = `SELECT * FROM reportlist`;  // Base query to fetch all reports
 
     // If a search term is provided, modify the query to search for matching Plate_number
     if (searchTerm) {
@@ -293,11 +293,11 @@ app.get('/api/drivers', (req, res) => {
 
     connect.query(query, [`%${searchTerm}%`], (err, results) => {
         if (err) {
-            console.error('Error fetching drivers:', err);
-            return res.status(500).json({ error: 'Failed to fetch drivers.' });
+            console.error('Error fetching reports:', err);
+            return res.status(500).json({ error: 'Failed to fetch reports.' });
         }
 
-        res.json(results);  // Return the fetched drivers
+        res.json(results);  // Return the fetched reports
     });
 });
 
