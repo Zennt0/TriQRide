@@ -278,8 +278,7 @@ app.get('/api/drivers', (req, res) => {
 app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;  // Get the search query parameter
 
-    // Base query to fetch the owner, franchise, and violations (counted)
-    let query = `SELECT Driver_name AS owner, Plate_number AS franchise, Violations FROM reportlist`;
+    let query = `SELECT * FROM reportlist`;  // Base query to fetch all reports
 
     // If a search term is provided, modify the query to search for matching Plate_number
     if (searchTerm) {
@@ -292,14 +291,7 @@ app.get('/api/reports', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch reports.' });
         }
 
-        // Process the results to include total number of violations
-        const processedResults = results.map((row) => ({
-            owner: row.owner,
-            franchise: row.franchise,
-            totalViolations: row.Violations ? row.Violations.split(',').length : 0  // Count violations by splitting the string
-        }));
-
-        res.json(processedResults);  // Return the processed reports
+        res.json(results);  // Return the fetched reports
     });
 });
 
