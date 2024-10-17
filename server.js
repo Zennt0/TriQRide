@@ -279,12 +279,16 @@ app.get('/api/drivers', (req, res) => {
 app.get('/api/driver/:plateNumber', (req, res) => {
     const plateNumber = req.params.plateNumber;
 
-    // Query to get driver details and associated report details
+    // Query to get driver details and calculate the average rating
     const query = `
-        SELECT dl.*, rl.Violations, rl.ratings, rl.report_datetime
+        SELECT dl.*, 
+        COALESCE(AVG(rl.ratings), 0) AS averageRating,  -- Calculate average rating
+        GROUP_CONCAT(rl.Violations) AS Violations,  -- Concatenate violations into a single string
+        rl.report_datetime
         FROM driverlist dl
         LEFT JOIN reportlist rl ON dl.Plate_number = rl.Plate_number
         WHERE dl.Plate_number = ?
+        GROUP BY dl.Plate_number;  -- Group by the driver to calculate the average rating
     `;
 
     connect.query(query, [plateNumber], (err, results) => {
