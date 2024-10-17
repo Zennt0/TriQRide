@@ -295,6 +295,26 @@ app.get('/api/reports', (req, res) => {
     });
 });
 
+app.get('/api/seminar', (req, res) => {
+    const query = `
+        SELECT 
+            Driver_name AS owner, 
+            Plate_number AS franchise, 
+            COUNT(Violations) AS total_violations 
+        FROM reportlist 
+        GROUP BY Driver_name, Plate_number
+    `;
+
+    connect.query(query, (err, results) => {
+        if (err) {
+            console.error('Error fetching seminar data:', err);
+            return res.status(500).json({ error: 'Failed to fetch seminar data.' });
+        }
+
+        res.json(results);  // Send the processed data back to the frontend
+    });
+});
+
 // Delete a record by ID
 app.delete('/api/list', (req, res) => {
     const { id } = req.body;
