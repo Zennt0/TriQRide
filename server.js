@@ -257,13 +257,20 @@ app.get('/api/list/:id/image', (req, res) => {
 app.get('/api/drivers', (req, res) => {
     const searchTerm = req.query.search; // Get the search query parameter
 
-    // Base query to fetch all drivers
-    let query = `SELECT * FROM driverlist`;
+    // Base query to fetch all drivers and their overall rating
+    let query = `
+        SELECT d.*, COALESCE(AVG(r.rating), 'Not available') AS overall_rating
+        FROM driverlist d
+        LEFT JOIN reportlist r ON d.Plate_number = r.Plate_number
+    `;
 
     // If a search term is provided, modify the query to search for matching Plate_number
     if (searchTerm) {
-        query += ` WHERE Plate_number LIKE ?`; // Modify query to include the search condition
+        query += ` WHERE d.Plate_number LIKE ?`;
     }
+
+    // Group by to calculate average rating per driver
+    query += ` GROUP BY d.Plate_number`;
 
     // Execute the query
     connect.query(query, searchTerm ? [`%${searchTerm}%`] : [], (err, results) => {
@@ -272,7 +279,7 @@ app.get('/api/drivers', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch drivers.' });
         }
 
-        res.json(results);  // Return the fetched drivers
+        res.json(results);  // Return the fetched drivers with their overall rating
     });
 });
 
