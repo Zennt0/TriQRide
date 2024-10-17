@@ -253,19 +253,12 @@ app.get('/api/list/:id/image', (req, res) => {
     });
 });
 
-
 app.get('/api/drivers', (req, res) => {
     const searchTerm = req.query.search; // Get the search query parameter
 
     // Base query to fetch all drivers and their overall rating
     let query = `
-        SELECT 
-            d.id, 
-            d.Driver_name, 
-            d.Plate_number, 
-            d.Barangay, 
-            d.Image,
-            AVG(r.rating) AS overall_rating
+        SELECT d.*, COALESCE(AVG(r.rating), 'Not available') AS overallRating
         FROM driverlist d
         LEFT JOIN reportlist r ON d.Plate_number = r.Plate_number
     `;
@@ -276,14 +269,7 @@ app.get('/api/drivers', (req, res) => {
     }
 
     // Group by to calculate average rating per driver
-    query += `
-        GROUP BY 
-            d.id, 
-            d.Driver_name, 
-            d.Plate_number, 
-            d.Barangay, 
-            d.Image
-    `;
+    query += ` GROUP BY d.Plate_number`;
 
     // Execute the query
     connect.query(query, searchTerm ? [`%${searchTerm}%`] : [], (err, results) => {
@@ -295,6 +281,7 @@ app.get('/api/drivers', (req, res) => {
         res.json(results);  // Return the fetched drivers with their overall rating
     });
 });
+
 
 app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;  // Get the search query parameter
