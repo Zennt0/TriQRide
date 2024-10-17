@@ -254,28 +254,15 @@ app.get('/api/list/:id/image', (req, res) => {
 });
 
 app.get('/api/drivers', (req, res) => {
-    const searchTerm = req.query.search;
+    const searchTerm = req.query.search; // Get the search query parameter
 
-    // Base query to fetch all drivers along with their average rating, total violations, and the latest report time
-    let query = `
-        SELECT 
-            d.*, 
-            AVG(r.ratings) AS overallRating,
-            COUNT(r.id) AS totalViolations,
-            MAX(r.report_datetime) AS lastReportTime
-        FROM 
-            driverlist d
-        LEFT JOIN 
-            reportlist r ON d.Plate_number = r.Plate_number
-    `;
+    // Base query to fetch all drivers
+    let query = `SELECT * FROM driverlist`;
 
     // If a search term is provided, modify the query to search for matching Plate_number
     if (searchTerm) {
-        query += ` WHERE d.Plate_number LIKE ?`;
+        query += ` WHERE Plate_number LIKE ?`; // Modify query to include the search condition
     }
-
-    // Group by Plate_number to calculate average ratings and total violations for each driver
-    query += ` GROUP BY d.Plate_number`;
 
     // Execute the query
     connect.query(query, searchTerm ? [`%${searchTerm}%`] : [], (err, results) => {
@@ -284,9 +271,9 @@ app.get('/api/drivers', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch drivers.' });
         }
 
-        res.json(results);  // Return the fetched drivers with average ratings, total violations, and last report time
+        res.json(results);  // Return the fetched drivers
     });
-})
+});
 
 
 app.get('/api/reports', (req, res) => {
