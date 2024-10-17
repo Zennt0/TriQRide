@@ -253,6 +253,29 @@ app.get('/api/list/:id/image', (req, res) => {
     });
 });
 
+
+app.get('/api/drivers', (req, res) => {
+    const searchTerm = req.query.search; // Get the search query parameter
+
+    // Base query to fetch all drivers
+    let query = `SELECT * FROM driverlist`;
+
+    // If a search term is provided, modify the query to search for matching Plate_number
+    if (searchTerm) {
+        query += ` WHERE Plate_number LIKE ?`; // Modify query to include the search condition
+    }
+
+    // Execute the query
+    connect.query(query, searchTerm ? [`%${searchTerm}%`] : [], (err, results) => {
+        if (err) {
+            console.error('Error fetching drivers:', err);
+            return res.status(500).json({ error: 'Failed to fetch drivers.' });
+        }
+
+        res.json(results);  // Return the fetched drivers
+    });
+});
+
 app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;  // Get the search query parameter
     const selectedMonth = req.query.month; // Get the selected month query parameter
