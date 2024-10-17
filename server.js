@@ -269,7 +269,7 @@ app.get('/api/drivers', (req, res) => {
     }
 
     // Group by Plate_number to calculate average ratings for each driver
-    query += ` GROUP BY d.id`;
+    query += ` GROUP BY Plate_number`;
 
     // Execute the query
     connect.query(query, searchTerm ? [`%${searchTerm}%`] : [], (err, results) => {
