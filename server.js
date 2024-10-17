@@ -275,6 +275,28 @@ app.get('/api/drivers', (req, res) => {
     });
 });
 
+// Fetch driver details along with their report data
+app.get('/api/driver/:plateNumber', (req, res) => {
+    const plateNumber = req.params.plateNumber;
+
+    // Query to get driver details and associated report details
+    const query = `
+        SELECT dl.*, rl.Violations, rl.ratings, rl.report_datetime
+        FROM driverlist dl
+        LEFT JOIN reportlist rl ON dl.Plate_number = rl.Plate_number
+        WHERE dl.Plate_number = ?
+    `;
+
+    connect.query(query, [plateNumber], (err, results) => {
+        if (err) {
+            console.error('Error fetching driver report details:', err);
+            return res.status(500).json({ error: 'Failed to fetch report details.' });
+        }
+
+        res.json(results);
+    });
+});
+
 
 app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;  // Get the search query parameter
