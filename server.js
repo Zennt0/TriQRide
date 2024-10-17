@@ -280,40 +280,39 @@ app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;  // Get the search query parameter
     const selectedMonth = req.query.month; // Get the selected month query parameter
 
-    let query = `SELECT * FROM reportlist`;
+    let query = 'SELECT * FROM reportlist';  // SQL query starts here
     const queryParams = [];  // This will hold the parameters for the prepared statement
 
     // Check if a search term or month is provided
     if (searchTerm || selectedMonth) {
-        query += ` WHERE`;
+        query += ' WHERE';  // Start the WHERE clause
         const conditions = [];
 
         // If a search term is provided, add a condition for it
         if (searchTerm) {
-            conditions.push(` Plate_number LIKE ?`);
-            queryParams.push(`%${searchTerm}%`);  // Add the search term to the query parameters
+            conditions.push(' Plate_number LIKE ? ');
+            queryParams.push(`%${searchTerm}%`);  // Add the search term to the query parameters with wildcards for partial matching
         }
 
         // If a month is provided, add a condition for it
         if (selectedMonth) {
-            // Convert selectedMonth to a number (if it comes as a string)
-            const monthInt = parseInt(selectedMonth);
-            // Add a condition for filtering by month (assuming report_datetime is stored as a date)
-            conditions.push(` MONTH(report_datetime) = ?`);
-            queryParams.push(monthInt); // Add the month to the query parameters
+            const monthInt = parseInt(selectedMonth, 10);  // Convert selectedMonth to an integer
+            conditions.push(' MONTH(report_datetime) = ? ');
+            queryParams.push(monthInt);  // Add the month to the query parameters
         }
 
         // Combine conditions with AND
         query += conditions.join(' AND ');
     }
 
+    // Execute the query
     connect.query(query, queryParams, (err, results) => {
         if (err) {
             console.error('Error fetching reports:', err);
             return res.status(500).json({ error: 'Failed to fetch reports.' });
         }
 
-        res.json(results);  // Return the fetched reports
+        res.json(results);  // Return the fetched reports as JSON
     });
 });
 
