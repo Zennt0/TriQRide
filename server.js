@@ -279,16 +279,15 @@ app.get('/api/drivers', (req, res) => {
 app.get('/api/driver/:plateNumber', (req, res) => {
     const plateNumber = req.params.plateNumber;
 
-    // Query to get driver details and calculate the average rating
+    // Query to get driver details, average rating, and violation history with date-time
     const query = `
         SELECT dl.*, 
         COALESCE(AVG(rl.ratings), 0) AS averageRating,  -- Calculate average rating
-        GROUP_CONCAT(rl.Violations) AS Violations,  -- Concatenate violations into a single string
-        rl.report_datetime
+        GROUP_CONCAT(CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s')) SEPARATOR ', ') AS ViolationHistory  -- Concatenate violations with date and time
         FROM driverlist dl
         LEFT JOIN reportlist rl ON dl.Plate_number = rl.Plate_number
         WHERE dl.Plate_number = ?
-        GROUP BY dl.Plate_number;  -- Group by the driver to calculate the average rating
+        GROUP BY dl.Plate_number;
     `;
 
     connect.query(query, [plateNumber], (err, results) => {
@@ -297,7 +296,15 @@ app.get('/api/driver/:plateNumber', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch report details.' });
         }
 
-        res.json(results);
+        // Send the first result (driver data) back as a response, assuming one driver per plate number
+        if (results.length > 0) {
+            res.json({
+                success: true,
+                data: results[0] // Send the first result (driver data) back
+            });
+        } else {
+            res.status(404).json({ error: 'Driver not found' });
+        }
     });
 });
 
