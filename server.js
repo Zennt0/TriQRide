@@ -85,7 +85,7 @@ app.post('/login', (req, res) => {
     });
 });
 
-// Create account endpoint
+
 app.post('/register', async (req, res) => {
     const { username, fullname, password } = req.body;
 
