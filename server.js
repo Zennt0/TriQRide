@@ -350,25 +350,32 @@ app.get('/api/reports', (req, res) => {
 });
 
 app.get('/api/seminar', (req, res) => {
-    // SQL query to fetch drivers who have exactly 3 or more violations
-    const query = `
+    const searchTerm = req.query.search; // Get the search query parameter
+
+    // Base query to fetch drivers with 3 or more violations
+    let query = `
         SELECT 
             Driver_name AS owner, 
             Plate_number AS franchise, 
             COUNT(Violations) AS total_violations
         FROM reportlist
         GROUP BY Driver_name, Plate_number
-        HAVING COUNT(Violations) >= 3;  -- Only show drivers with 3 or more violations
+        HAVING COUNT(Violations) >= 3
     `;
 
-    connect.query(query, (err, results) => {
+    // If a search term is provided, modify the query to search for matching Plate_number or Driver_name
+    if (searchTerm) {
+        query += ` AND (Plate_number LIKE ? OR Driver_name LIKE ?)`; // Search both plate number and driver name
+    }
+
+    // Execute the query, using placeholders for the search term if provided
+    connect.query(query, searchTerm ? [`%${searchTerm}%`, `%${searchTerm}%`] : [], (err, results) => {
         if (err) {
             console.error('Error fetching seminar data:', err);
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
         }
 
-        // Return the fetched data (only drivers with 3 or more violations)
-        res.json(results);
+        res.json(results);  // Return the fetched seminar data (filtered if search is applied)
     });
 });
 
