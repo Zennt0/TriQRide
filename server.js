@@ -350,16 +350,15 @@ app.get('/api/reports', (req, res) => {
 });
 
 app.get('/api/seminar', (req, res) => {
-    // SQL query to fetch driver names, plate numbers, and total number of violations
+    // SQL query to fetch drivers who have exactly 3 or more violations
     const query = `
         SELECT 
             Driver_name AS owner, 
             Plate_number AS franchise, 
-            COUNT(Violations) AS total_violations, 
-            AVG(ratings) AS overall_rating
+            COUNT(Violations) AS total_violations
         FROM reportlist
         GROUP BY Driver_name, Plate_number
-        HAVING COUNT(Violations) >= 3;  -- Only return drivers with 3 or more violations
+        HAVING COUNT(Violations) >= 3;  -- Only show drivers with 3 or more violations
     `;
 
     connect.query(query, (err, results) => {
@@ -368,7 +367,7 @@ app.get('/api/seminar', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
         }
 
-        // Return the fetched data
+        // Return the fetched data (only drivers with 3 or more violations)
         res.json(results);
     });
 });
