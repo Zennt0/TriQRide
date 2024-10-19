@@ -350,7 +350,7 @@ app.get('/api/reports', (req, res) => {
 });
 
 app.get('/api/seminar', (req, res) => {
-    // SQL query to fetch driver names, plate numbers, total number of violations, and average rating
+    // SQL query to fetch driver names, plate numbers, and total number of violations
     const query = `
         SELECT 
             Driver_name AS owner, 
@@ -358,7 +358,8 @@ app.get('/api/seminar', (req, res) => {
             COUNT(Violations) AS total_violations, 
             AVG(ratings) AS overall_rating
         FROM reportlist
-        GROUP BY Driver_name, Plate_number;
+        GROUP BY Driver_name, Plate_number
+        HAVING COUNT(Violations) >= 3;  -- Only return drivers with 3 or more violations
     `;
 
     connect.query(query, (err, results) => {
@@ -367,7 +368,7 @@ app.get('/api/seminar', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
         }
 
-        // Return the fetched data, including overall rating (average of violations)
+        // Return the fetched data
         res.json(results);
     });
 });
