@@ -247,7 +247,7 @@ app.get('/api/list/:id', (req, res) => {
                 const responseData = {
                     ...driver,
                     totalViolations: reportRows[0].totalViolations || 0, // Count of violations
-                    overallRating: overallRating                        // Formatted rating
+                    overallRating: overallRating                        
                 };
 
                 console.log('Fetched driver and report data successfully:', responseData);
