@@ -527,7 +527,7 @@ app.post('/api/report/:id', async (req, res) => {
         return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
     }
 
-    // Check if driver exists in `driverlist`
+    // Check if driver exists in driverlist
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
@@ -543,11 +543,9 @@ app.post('/api/report/:id', async (req, res) => {
         // Set the current datetime for the report
         const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-        // Insert a new report entry in the `reportlist` table
-        const insertQuery = `
-            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
-            VALUES (?, ?, ?, ?, ?, ?)
-        `;
+        // Insert a new report entry in the reportlist table
+        const insertQuery = `INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
+                             VALUES (?, ?, ?, ?, ?, ?)`;
         const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
 
         connect.query(insertQuery, insertValues, (err, result) => {
@@ -562,8 +560,8 @@ app.post('/api/report/:id', async (req, res) => {
                     AVG(ratings) AS overall_rating, 
                     COUNT(Violations) AS total_violations 
                 FROM reportlist 
-                WHERE Plate_number = ? AND Driver_name = ?
-            `;
+                WHERE Plate_number = ? AND Driver_name = ?`;
+                
             connect.query(ratingQuery, [plate, driver], (err, ratingResults) => {
                 if (err) {
                     console.error('Error fetching rating and violations:', err);
@@ -581,7 +579,7 @@ app.post('/api/report/:id', async (req, res) => {
                     driver,
                     violations: report.trim(),
                     ratings,
-                    overallRating: parseFloat(overallRating.toFixed(2)), // Format the rating to 1 decimal point
+                    overallRating: parseFloat(overallRating.toFixed(2)), // Format the rating to 2 decimal points
                     totalViolations,
                     report_datetime: reportDateTime
                 });
