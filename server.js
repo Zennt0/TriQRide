@@ -213,47 +213,14 @@ app.get('/api/list/:id', (req, res) => {
     const id = req.params.id;
     console.log(`GET /api/list/${id} - Request received`);
 
-    // First, fetch driver details from driverlist
-    const driverQuery = 'SELECT * FROM driverlist WHERE id = ?';
-    
-    connect.query(driverQuery, [id], (err, driverRows) => {
+    connect.query('SELECT * FROM driverlist WHERE id = ?', [id], (err, rows) => {
         if (err) {
-            console.error('Error fetching driver data:', err);
-            return res.status(500).json({ error: 'Failed to fetch driver data' });
+            console.error('Error fetching data:', err);
+            return res.status(500).json({ error: 'Failed to fetch data' });
         }
-
-        if (driverRows.length > 0) {
-            const driver = driverRows[0]; // Get the driver record
-
-            // Now, fetch violations and ratings from reportlist based on Plate_number
-            const reportQuery = `
-                SELECT 
-                    COUNT(Violations) AS totalViolations, 
-                    AVG(ratings) AS overallRating 
-                FROM reportlist 
-                WHERE Plate_number = ?
-            `;
-
-            connect.query(reportQuery, [driver.Plate_number], (err, reportRows) => {
-                if (err) {
-                    console.error('Error fetching report data:', err);
-                    return res.status(500).json({ error: 'Failed to fetch report data' });
-                }
-
-                // Format overallRating to two decimal places
-                const overallRating = reportRows[0].overallRating ? parseFloat(reportRows[0].overallRating).toFixed(2) : '0.00';
-
-                // Combine driver data with report stats
-                const responseData = {
-                    ...driver,
-                    totalViolations: reportRows[0].totalViolations || 0, // Count of violations
-                    overallRating: overallRating                        
-                };
-
-                console.log('Fetched driver and report data successfully:', responseData);
-                res.json(responseData);
-            });
-
+        if (rows.length > 0) {
+            console.log('Fetched record successfully:', rows[0]);
+            res.json(rows[0]);
         } else {
             console.error(`Record with ID ${id} not found`);
             res.status(404).json({ msg: `Record with ID ${id} not found!` });
