@@ -527,7 +527,7 @@ app.post('/api/report/:id', async (req, res) => {
         return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
     }
 
-    // Check if driver exists in driverlist
+    // Check if driver exists in `driverlist`
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
@@ -543,9 +543,11 @@ app.post('/api/report/:id', async (req, res) => {
         // Set the current datetime for the report
         const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
 
-        // Insert a new report entry in the reportlist table
-        const insertQuery = `INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
-                             VALUES (?, ?, ?, ?, ?, ?)`;
+        // Insert a new report entry in the `reportlist` table
+        const insertQuery = `
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `;
         const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
 
         connect.query(insertQuery, insertValues, (err, result) => {
@@ -554,67 +556,47 @@ app.post('/api/report/:id', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
-            // Fetch the overall rating and the number of violations for the driver
-            const ratingQuery = `
-                SELECT 
-                    AVG(ratings) AS overall_rating, 
-                    COUNT(Violations) AS total_violations 
-                FROM reportlist 
-                WHERE Plate_number = ? AND Driver_name = ?`;
-                
-            connect.query(ratingQuery, [plate, driver], (err, ratingResults) => {
-                if (err) {
-                    console.error('Error fetching rating and violations:', err);
-                    return res.status(500).json({ error: 'Failed to fetch rating and violations data.' });
-                }
-
-                const overallRating = ratingResults[0].overall_rating || 0;
-                const totalViolations = ratingResults[0].total_violations || 0;
-
-                // Respond with the report data including overall rating and total violations
-                res.json({
-                    msg: 'Report submitted successfully!',
-                    reportId: result.insertId,
-                    plate,
-                    driver,
-                    violations: report.trim(),
-                    ratings,
-                    overallRating: parseFloat(overallRating.toFixed(2)), // Format the rating to 2 decimal points
-                    totalViolations,
-                    report_datetime: reportDateTime
-                });
-
-                // Prepare notification payload
-                const notificationPayload = {
-                    id: driverId,  // Use driverId for tracking
-                    title: "Report Notice",
-                    body: `Report Submitted To Municipal Office Franchise Number: ${plate}`,
-                    serverTime: new Date().toLocaleTimeString(),
-                    serverDate: new Date().toLocaleDateString(),
-                    fcm_token: fcm_token  // Use the fcm_token from the report
-                };
-
-                // Send the notification after report submission
-                fetch('https://triqride.onrender.com/sendnotification', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(notificationPayload)
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        // Log the status code and response if it's not OK
-                        return response.text().then(text => {
-                            console.error('Error response:', text);
-                            throw new Error(`Failed to send notification. Status: ${response.status}`);
-                        });
-                    }
-                    return response.json();  // Attempt to parse JSON if the response is OK
-                })
-                .then(data => {
-                    console.log('Notification Sent', data);
-                })
-                .catch(err => console.error('Error sending notification', err));
+            // Report submitted successfully
+            res.json({
+                msg: 'Report submitted successfully!',
+                reportId: result.insertId,
+                plate,
+                driver,
+                violations: report.trim(),
+                ratings,
+                report_datetime: reportDateTime
             });
+
+            // Prepare notification payload
+            const notificationPayload = {
+                id: driverId,  // Use driverId for tracking
+                title: "Report Notice",
+                body: `Report Submitted To Municipal Office Franchise Number: ${plate}`,
+                serverTime: new Date().toLocaleTimeString(),
+                serverDate: new Date().toLocaleDateString(),
+                fcm_token: fcm_token  // Use the fcm_token from the report
+            };
+
+            // Send the notification after report submission
+            fetch('https://triqride.onrender.com/sendnotification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(notificationPayload)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Log the status code and response if it's not OK
+                    return response.text().then(text => {
+                        console.error('Error response:', text);
+                        throw new Error(`Failed to send notification. Status: ${response.status}`);
+                    });
+                }
+                return response.json();  // Attempt to parse JSON if the response is OK
+            })
+            .then(data => {
+                console.log('Notification Sent', data);
+            })
+            .catch(err => console.error('Error sending notification', err));
         });
     });
 });
