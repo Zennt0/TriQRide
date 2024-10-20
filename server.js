@@ -581,7 +581,7 @@ app.post('/api/report/:id', async (req, res) => {
                     driver,
                     violations: report.trim(),
                     ratings,
-                    overallRating: parseFloat(overallRating.toFixed(1)), // Format the rating to 1 decimal point
+                    overallRating: parseFloat(overallRating.toFixed(2)), // Format the rating to 1 decimal point
                     totalViolations,
                     report_datetime: reportDateTime
                 });
