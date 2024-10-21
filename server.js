@@ -701,7 +701,7 @@ app.post('/sendseminarnotification', (req, res) => {
         return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
     }
 
-    // Fetch all FCM tokens related to this driver (or multiple drivers, if needed)
+    // Fetch all FCM tokens related to this driver
     connect.query(`
         SELECT fcm_token 
         FROM reportlist 
@@ -718,40 +718,46 @@ app.post('/sendseminarnotification', (req, res) => {
         }
 
         // Send notification to each fetched FCM token
-        rows.forEach(row => {
+        const promises = rows.map(row => {
             const fcm_token = row?.fcm_token;
-
             if (!fcm_token) {
                 console.error('FCM token not found for a driver');
-                return;
+                return Promise.resolve(); // Skip if token is missing
             }
 
-            // Prepare the message to be sent
             const message = {
-                notification: {
-                    title: title,
-                    body: body,
-                },
+                notification: { title, body },
                 token: fcm_token,
-                data: {
-                    serverTime: serverTime,
-                    serverDate: serverDate,
-                },
+                data: { serverTime, serverDate },
             };
 
             console.log('Sending seminar notification:', message);
 
             // Send the notification via FCM
-            admin.messaging().send(message)
-                .then((response) => {
-                    console.log('Seminar notification sent successfully to FCM token:', fcm_token);
+            return admin.messaging().send(message)
+                .then(response => {
+                    console.log('Seminar notification sent successfully:', response);
+                    return { success: true, token: fcm_token };
                 })
-                .catch((error) => {
-                    console.error('Error sending seminar notification to FCM token:', fcm_token, error);
+                .catch(error => {
+                    console.error('Failed to send seminar notification:', error);
+                    return { success: false, error };
                 });
         });
 
-        res.status(200).json({ success: true, msg: 'Seminar notifications sent successfully' });
+        // Await all notification results and send response
+        Promise.all(promises)
+            .then(results => {
+                res.json({
+                    success: true,
+                    msg: 'Notifications processed',
+                    results: results
+                });
+            })
+            .catch(err => {
+                console.error('Error in processing notifications:', err);
+                res.status(500).json({ error: 'Failed to process notifications' });
+            });
     });
 });
 
