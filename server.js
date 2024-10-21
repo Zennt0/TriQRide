@@ -691,6 +691,70 @@ app.post('/sendnotification', (req, res) => {
     });
 });
 
+app.post('/sendseminarnotification', (req, res) => {
+    const { id, title, body, serverTime, serverDate } = req.body;
+    console.log('POST /sendseminarnotification - Request received', { id, title, body, serverTime, serverDate });
+
+    // Validation checks
+    if (!id || !title || !body || !serverTime || !serverDate) {
+        console.error('Validation Error: Missing required fields');
+        return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
+    }
+
+    // Fetch all FCM tokens related to this driver (or multiple drivers, if needed)
+    connect.query(`
+        SELECT fcm_token 
+        FROM reportlist 
+        WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)
+    `, [id], (err, rows) => {
+        if (err) {
+            console.error('Database Error: Failed to fetch FCM tokens:', err);
+            return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
+        }
+
+        if (rows.length === 0) {
+            console.error('No report found for driver ID:', id);
+            return res.status(404).json({ error: 'No report found for the provided driver ID' });
+        }
+
+        // Send notification to each fetched FCM token
+        rows.forEach(row => {
+            const fcm_token = row?.fcm_token;
+
+            if (!fcm_token) {
+                console.error('FCM token not found for a driver');
+                return;
+            }
+
+            // Prepare the message to be sent
+            const message = {
+                notification: {
+                    title: title,
+                    body: body,
+                },
+                token: fcm_token,
+                data: {
+                    serverTime: serverTime,
+                    serverDate: serverDate,
+                },
+            };
+
+            console.log('Sending seminar notification:', message);
+
+            // Send the notification via FCM
+            admin.messaging().send(message)
+                .then((response) => {
+                    console.log('Seminar notification sent successfully to FCM token:', fcm_token);
+                })
+                .catch((error) => {
+                    console.error('Error sending seminar notification to FCM token:', fcm_token, error);
+                });
+        });
+
+        res.status(200).json({ success: true, msg: 'Seminar notifications sent successfully' });
+    });
+});
+
 
 // Start the server 
 app.listen(PORT, () => {
