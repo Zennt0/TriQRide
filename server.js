@@ -693,66 +693,69 @@ app.post('/sendnotification', (req, res) => {
 
 app.post('/sendseminarnotification', (req, res) => {
     const { id, title, body, serverTime, serverDate } = req.body;
+
+    // Log request body
     console.log('POST /sendseminarnotification - Request received', { id, title, body, serverTime, serverDate });
 
-    // Validation checks
+    // Check if required fields are present
     if (!id || !title || !body || !serverTime || !serverDate) {
-        console.error('Validation Error: Missing required fields');
+        console.error('Validation Error: Missing required fields', { id, title, body, serverTime, serverDate });
         return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
     }
 
     // Fetch all FCM tokens related to this driver
-    connect.query(`
+    const query = `
         SELECT fcm_token 
         FROM reportlist 
         WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)
-    `, [id], (err, rows) => {
+    `;
+    console.log('Executing query:', query);
+
+    connect.query(query, [id], (err, rows) => {
         if (err) {
             console.error('Database Error: Failed to fetch FCM tokens:', err);
             return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
         }
 
+        console.log('FCM tokens fetched from reportlist:', rows);
+
         if (rows.length === 0) {
-            console.error('No report found for driver ID:', id);
-            return res.status(404).json({ error: 'No report found for the provided driver ID' });
+            console.error('No FCM tokens found for driver ID:', id);
+            return res.status(404).json({ error: 'No FCM tokens found' });
         }
 
-        // Send notification to each fetched FCM token
+        // Send notifications
         const promises = rows.map(row => {
             const fcm_token = row?.fcm_token;
+
             if (!fcm_token) {
-                console.error('FCM token not found for a driver');
-                return Promise.resolve(); // Skip if token is missing
+                console.error('Missing FCM token for one of the reports', row);
+                return Promise.resolve(); // Skip if no token
             }
 
             const message = {
                 notification: { title, body },
                 token: fcm_token,
-                data: { serverTime, serverDate },
+                data: { serverTime, serverDate }
             };
 
-            console.log('Sending seminar notification:', message);
+            console.log('Sending notification to token:', fcm_token, 'Message:', message);
 
-            // Send the notification via FCM
             return admin.messaging().send(message)
                 .then(response => {
-                    console.log('Seminar notification sent successfully:', response);
+                    console.log('Notification sent successfully:', response);
                     return { success: true, token: fcm_token };
                 })
                 .catch(error => {
-                    console.error('Failed to send seminar notification:', error);
+                    console.error('Failed to send notification:', error);
                     return { success: false, error };
                 });
         });
 
-        // Await all notification results and send response
         Promise.all(promises)
             .then(results => {
-                res.json({
-                    success: true,
-                    msg: 'Notifications processed',
-                    results: results
-                });
+                console.log('Notification results:', results);
+                res.json({ success: true, msg: 'Notifications processed', results });
             })
             .catch(err => {
                 console.error('Error in processing notifications:', err);
