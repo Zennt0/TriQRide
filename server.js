@@ -692,7 +692,7 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/api/notify-attendance', (req, res) => {
-    const { driverId, attended } = req.body;
+    const { plateNumber, attended } = req.body; // Accept Plate_number instead of driverId
     const title = attended ? 'Seminar Attendance Confirmed' : 'Seminar Absence Recorded';
     const body = attended
         ? 'The driver attended the seminar successfully.'
@@ -701,28 +701,24 @@ app.post('/api/notify-attendance', (req, res) => {
     const serverTime = new Date().toLocaleTimeString();
     const serverDate = new Date().toLocaleDateString();
 
-    console.log('POST /api/notify-attendance - Request received', { driverId, attended });
+    console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
 
     // Validation checks
-    if (!driverId) {
-        return res.status(400).json({ error: 'Driver ID is required.' });
+    if (!plateNumber) {
+        return res.status(400).json({ error: 'Plate number is required.' });
     }
 
-    // Fetch FCM tokens related to the driver
-    const query = `
-        SELECT fcm_token 
-        FROM reportlist 
-        WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)
-    `;
-    connect.query(query, [driverId], (err, rows) => {
+    // Fetch FCM tokens related to the plate number
+    const query = `SELECT fcm_token FROM reportlist WHERE Plate_number = ?`;
+    connect.query(query, [plateNumber], (err, rows) => {
         if (err) {
             console.error('Database Error: Failed to fetch FCM tokens:', err);
             return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
         }
 
         if (rows.length === 0) {
-            console.error('No FCM token found for driver ID:', driverId);
-            return res.status(404).json({ error: 'No FCM token found for the provided driver ID' });
+            console.error('No FCM token found for Plate number:', plateNumber);
+            return res.status(404).json({ error: 'No FCM token found for the provided Plate number' });
         }
 
         // Send notification to each FCM token
@@ -730,7 +726,7 @@ app.post('/api/notify-attendance', (req, res) => {
             const fcm_token = row.fcm_token;
 
             if (!fcm_token) {
-                console.error('FCM token not found for driver');
+                console.error('FCM token not found for plate number:', plateNumber);
                 return;
             }
 
@@ -757,7 +753,7 @@ app.post('/api/notify-attendance', (req, res) => {
 
         res.status(200).json({ success: true, msg: 'Notifications sent successfully' });
     });
-})
+});
 
 // Start the server 
 app.listen(PORT, () => {
