@@ -696,16 +696,14 @@ app.post('/sendnotification', (req, res) => {
 app.post('/api/notify-attendance', (req, res) => {
     const { plateNumber, attended } = req.body;
     
-    // Log request details
     console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
 
     // Validate plateNumber
     if (!plateNumber || plateNumber === 'N/A') {
-        console.error('Invalid or missing plate number');
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch fcm_token from reportlist using the Plate_number
+    // Step 1: Fetch fcm_token from reportlist using Plate_number
     connect.query(`
         SELECT fcm_token 
         FROM reportlist 
@@ -717,14 +715,12 @@ app.post('/api/notify-attendance', (req, res) => {
         }
 
         if (reportRows.length === 0) {
-            console.error('No FCM token found for Plate number:', plateNumber);
             return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
         }
 
         const fcm_token = reportRows[0].fcm_token;
 
         if (!fcm_token) {
-            console.error('FCM token not found for Plate number:', plateNumber);
             return res.status(404).json({ error: 'FCM token not found.' });
         }
 
@@ -735,12 +731,10 @@ app.post('/api/notify-attendance', (req, res) => {
             WHERE Plate_number = ?
         `, [plateNumber], (err, driverRows) => {
             if (err) {
-                console.error('Database Error: Failed to fetch driver ID:', err);
                 return res.status(500).json({ error: 'Failed to fetch driver ID.' });
             }
 
             if (driverRows.length === 0) {
-                console.error('No driver found for Plate number:', plateNumber);
                 return res.status(404).json({ error: 'No driver found for the provided Plate number.' });
             }
 
@@ -749,14 +743,16 @@ app.post('/api/notify-attendance', (req, res) => {
             // Step 3: Send notification using Firebase with fcm_token
             const message = {
                 notification: {
-                    title: 'Seminar Attendance',
-                    body: attended ? 'Driver attended the seminar' : 'Driver did not attend the seminar',
+                    title: attended ? 'Seminar Attendance' : 'Seminar Absence',
+                    body: attended ? 
+                        `Driver with Plate Number ${plateNumber} attended the seminar.` :
+                        `Driver with Plate Number ${plateNumber} did not attend the seminar.`,
                 },
                 token: fcm_token,
                 data: {
                     plateNumber: plateNumber,
                     attended: String(attended),
-                    driverId: String(driverId)  // Include driver ID in the notification data if needed
+                    driverId: String(driverId),
                 },
             };
 
@@ -766,7 +762,7 @@ app.post('/api/notify-attendance', (req, res) => {
                     res.status(200).json({ 
                         success: true, 
                         msg: 'Notification sent successfully.', 
-                        driverId: driverId  // Optionally return the driver ID in the response
+                        driverId: driverId 
                     });
                 })
                 .catch((error) => {
@@ -776,7 +772,6 @@ app.post('/api/notify-attendance', (req, res) => {
         });
     });
 });
-
 // Start the server 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
