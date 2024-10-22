@@ -691,69 +691,73 @@ app.post('/sendnotification', (req, res) => {
     });
 });
 
-app.post('/sendseminarnotification', (req, res) => {
-    const { id, title, body, serverTime, serverDate } = req.body;
-    console.log('POST /sendseminarnotification - Request received', { id, title, body, serverTime, serverDate });
+app.post('/api/notify-attendance', (req, res) => {
+    const { driverId, attended } = req.body;
+    const title = attended ? 'Seminar Attendance Confirmed' : 'Seminar Absence Recorded';
+    const body = attended
+        ? 'The driver attended the seminar successfully.'
+        : 'The driver did not attend the seminar.';
+    
+    const serverTime = new Date().toLocaleTimeString();
+    const serverDate = new Date().toLocaleDateString();
+
+    console.log('POST /api/notify-attendance - Request received', { driverId, attended });
 
     // Validation checks
-    if (!id || !title || !body || !serverTime || !serverDate) {
-        console.error('Validation Error: Missing required fields');
-        return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
+    if (!driverId) {
+        return res.status(400).json({ error: 'Driver ID is required.' });
     }
 
-    // Fetch all FCM tokens related to this driver (or multiple drivers, if needed)
-    connect.query(`
+    // Fetch FCM tokens related to the driver
+    const query = `
         SELECT fcm_token 
         FROM reportlist 
         WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)
-    `, [id], (err, rows) => {
+    `;
+    connect.query(query, [driverId], (err, rows) => {
         if (err) {
             console.error('Database Error: Failed to fetch FCM tokens:', err);
             return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
         }
 
         if (rows.length === 0) {
-            console.error('No report found for driver ID:', id);
-            return res.status(404).json({ error: 'No report found for the provided driver ID' });
+            console.error('No FCM token found for driver ID:', driverId);
+            return res.status(404).json({ error: 'No FCM token found for the provided driver ID' });
         }
 
-        // Send notification to each fetched FCM token
+        // Send notification to each FCM token
         rows.forEach(row => {
-            const fcm_token = row?.fcm_token;
+            const fcm_token = row.fcm_token;
 
             if (!fcm_token) {
-                console.error('FCM token not found for a driver');
+                console.error('FCM token not found for driver');
                 return;
             }
 
-            // Prepare the message to be sent
             const message = {
                 notification: {
                     title: title,
-                    body: body,
+                    body: body
                 },
                 token: fcm_token,
                 data: {
                     serverTime: serverTime,
-                    serverDate: serverDate,
-                },
+                    serverDate: serverDate
+                }
             };
 
-            console.log('Sending seminar notification:', message);
-
-            // Send the notification via FCM
             admin.messaging().send(message)
-                .then((response) => {
-                    console.log('Seminar notification sent successfully to FCM token:', fcm_token);
+                .then(response => {
+                    console.log('Notification sent to FCM token:', fcm_token);
                 })
-                .catch((error) => {
-                    console.error('Error sending seminar notification to FCM token:', fcm_token, error);
+                .catch(error => {
+                    console.error('Error sending notification to FCM token:', fcm_token, error);
                 });
         });
 
-        res.status(200).json({ success: true, msg: 'Seminar notifications sent successfully' });
+        res.status(200).json({ success: true, msg: 'Notifications sent successfully' });
     });
-});
+})
 
 // Start the server 
 app.listen(PORT, () => {
