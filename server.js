@@ -692,46 +692,40 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/sendseminarnotification', (req, res) => {
-    const { driverName, title, body, serverTime, serverDate } = req.body;  // Use driverName from the request body
+    // Log the incoming request to track issues
+    console.log('Received /sendseminarnotification request:', req.body);
 
-    // Log request body
-    console.log('POST /sendseminarnotification - Request received', { driverName, title, body, serverTime, serverDate });
+    const { driverName, title, body, serverTime, serverDate } = req.body; // Expecting driverName, not driverId
 
-    // Check if required fields are present
+    // Validation check
     if (!driverName || !title || !body || !serverTime || !serverDate) {
-        console.error('Validation Error: Missing required fields', { driverName, title, body, serverTime, serverDate });
+        console.error('Missing fields:', { driverName, title, body, serverTime, serverDate });
         return res.status(400).json({ error: 'Driver name, title, body, serverTime, and serverDate are required.' });
     }
 
-    // Fetch all FCM tokens related to this driver using Driver_name
+    // Fetch FCM tokens for the driver
     const query = `
         SELECT fcm_token 
         FROM reportlist 
-        WHERE Driver_name = ?
+        WHERE Driver_name = ? 
     `;
-
-    console.log('Executing query:', query);
 
     connect.query(query, [driverName], (err, rows) => {
         if (err) {
-            console.error('Database Error: Failed to fetch FCM tokens:', err);
-            return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
+            console.error('Database error:', err);
+            return res.status(500).json({ error: 'Failed to fetch FCM tokens.' });
         }
 
-        console.log('FCM tokens fetched from reportlist:', rows);
-
         if (rows.length === 0) {
-            console.error('No FCM tokens found for Driver Name:', driverName);
+            console.error('No FCM tokens found for driver:', driverName);
             return res.status(404).json({ error: 'No FCM tokens found for this driver.' });
         }
 
-        // Send notifications to all fetched FCM tokens
         const promises = rows.map(row => {
-            const fcm_token = row?.fcm_token;
-
+            const fcm_token = row.fcm_token;
             if (!fcm_token) {
-                console.error('Missing FCM token for one of the reports', row);
-                return Promise.resolve();  // Skip if no token
+                console.error('Missing FCM token for one of the entries');
+                return Promise.resolve();
             }
 
             const message = {
@@ -740,11 +734,9 @@ app.post('/sendseminarnotification', (req, res) => {
                 data: { serverTime, serverDate }
             };
 
-            console.log('Sending notification to token:', fcm_token, 'Message:', message);
-
             return admin.messaging().send(message)
                 .then(response => {
-                    console.log('Notification sent successfully:', response);
+                    console.log('Notification sent:', response);
                     return { success: true, token: fcm_token };
                 })
                 .catch(error => {
@@ -754,13 +746,10 @@ app.post('/sendseminarnotification', (req, res) => {
         });
 
         Promise.all(promises)
-            .then(results => {
-                console.log('Notification results:', results);
-                res.json({ success: true, msg: 'Notifications processed', results });
-            })
+            .then(results => res.json({ success: true, msg: 'Notifications sent', results }))
             .catch(err => {
-                console.error('Error in processing notifications:', err);
-                res.status(500).json({ error: 'Failed to process notifications' });
+                console.error('Error processing notifications:', err);
+                res.status(500).json({ error: 'Notification processing failed.' });
             });
     });
 });
