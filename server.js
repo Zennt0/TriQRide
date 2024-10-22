@@ -694,22 +694,22 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/api/notify-attendance', (req, res) => {
-    const { identifier, attended } = req.body;  // Use a unique identifier instead of plate number
+    const { plateNumber, attended } = req.body;
 
-    console.log('POST /api/notify-attendance - Request received', { identifier, attended });
+    console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
 
-    // Validate the identifier (this could be driver ID or any unique field)
-    if (!identifier) {
-        console.error('Missing identifier');
-        return res.status(400).json({ error: 'Missing identifier.' });
+    // Validate the plateNumber
+    if (!plateNumber || plateNumber === 'N/A') {
+        console.error('Invalid or missing plate number');
+        return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch fcm_token from reportlist using the identifier
+    // Step 1: Fetch fcm_token from reportlist using the plate number
     connect.query(
         `SELECT fcm_token 
          FROM reportlist 
-         WHERE id = ?`,  // Change the condition to reflect the identifier you're using
-        [identifier],  // Use the identifier passed in the request body
+         WHERE Plate_number = ?`, 
+        [plateNumber], 
         (err, reportRows) => {
             if (err) {
                 console.error('Database Error: Failed to fetch FCM token:', err);
@@ -717,14 +717,14 @@ app.post('/api/notify-attendance', (req, res) => {
             }
 
             if (reportRows.length === 0) {
-                console.error('No FCM token found for the identifier:', identifier);
-                return res.status(404).json({ error: 'No FCM token found for the provided identifier.' });
+                console.error('No FCM token found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
             }
 
             const fcm_token = reportRows[0].fcm_token;
 
             if (!fcm_token) {
-                console.error('FCM token not found for identifier:', identifier);
+                console.error('FCM token not found for Plate number:', plateNumber);
                 return res.status(404).json({ error: 'FCM token not found.' });
             }
 
@@ -736,14 +736,14 @@ app.post('/api/notify-attendance', (req, res) => {
                 },
                 token: fcm_token,
                 data: {
-                    identifier: identifier, // Send the identifier as part of the data
+                    plateNumber: plateNumber, // Send the plate number as part of the data
                     attended: String(attended),  // Send attendance status
                 },
             };
 
             admin.messaging().send(message)
                 .then((response) => {
-                    console.log('Notification sent successfully for identifier:', identifier);
+                    console.log('Notification sent successfully for Plate number:', plateNumber);
                     res.status(200).json({ 
                         success: true, 
                         msg: 'Notification sent successfully.' 
