@@ -692,28 +692,23 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/api/notify-attendance', (req, res) => {
-    const { plateNumber, attended } = req.body; // Accept Plate_number instead of driverId
-    const title = attended ? 'Seminar Attendance Confirmed' : 'Seminar Absence Recorded';
-    const body = attended
-        ? 'The driver attended the seminar successfully.'
-        : 'The driver did not attend the seminar.';
-    
-    const serverTime = new Date().toLocaleTimeString();
-    const serverDate = new Date().toLocaleDateString();
-
+    const { plateNumber, attended } = req.body;
     console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
 
-    // Validation checks
+    // Validation
     if (!plateNumber) {
         return res.status(400).json({ error: 'Plate number is required.' });
     }
 
-    // Fetch FCM tokens related to the plate number
-    const query = `SELECT fcm_token FROM reportlist WHERE Plate_number = ?`;
-    connect.query(query, [plateNumber], (err, rows) => {
+    // Query the reportlist table to get the fcm_token based on the plate number
+    connect.query(`
+        SELECT fcm_token 
+        FROM reportlist 
+        WHERE Plate_number = ?
+    `, [plateNumber], (err, rows) => {
         if (err) {
-            console.error('Database Error: Failed to fetch FCM tokens:', err);
-            return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
+            console.error('Database Error: Failed to fetch FCM token:', err);
+            return res.status(500).json({ error: 'Failed to fetch FCM token' });
         }
 
         if (rows.length === 0) {
@@ -721,37 +716,35 @@ app.post('/api/notify-attendance', (req, res) => {
             return res.status(404).json({ error: 'No FCM token found for the provided Plate number' });
         }
 
-        // Send notification to each FCM token
-        rows.forEach(row => {
-            const fcm_token = row.fcm_token;
+        const fcm_token = rows[0].fcm_token;
+        if (!fcm_token) {
+            console.error('FCM token not found for Plate number:', plateNumber);
+            return res.status(404).json({ error: 'FCM token not found' });
+        }
 
-            if (!fcm_token) {
-                console.error('FCM token not found for plate number:', plateNumber);
-                return;
-            }
+        // Send notification using the fcm_token
+        const message = {
+            notification: {
+                title: 'Seminar Attendance',
+                body: attended ? 'Driver attended the seminar' : 'Driver did not attend the seminar',
+            },
+            token: fcm_token,
+            data: {
+                plateNumber: plateNumber,
+                attended: String(attended)
+            },
+        };
 
-            const message = {
-                notification: {
-                    title: title,
-                    body: body
-                },
-                token: fcm_token,
-                data: {
-                    serverTime: serverTime,
-                    serverDate: serverDate
-                }
-            };
-
-            admin.messaging().send(message)
-                .then(response => {
-                    console.log('Notification sent to FCM token:', fcm_token);
-                })
-                .catch(error => {
-                    console.error('Error sending notification to FCM token:', fcm_token, error);
-                });
-        });
-
-        res.status(200).json({ success: true, msg: 'Notifications sent successfully' });
+        // Send notification using Firebase
+        admin.messaging().send(message)
+            .then((response) => {
+                console.log('Notification sent successfully for Plate number:', plateNumber);
+                res.status(200).json({ success: true, msg: 'Notification sent successfully' });
+            })
+            .catch((error) => {
+                console.error('Error sending notification:', error);
+                res.status(500).json({ error: 'Failed to send notification' });
+            });
     });
 });
 
