@@ -694,21 +694,22 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/api/notify-attendance', (req, res) => {
-    const { plateNumber, attended } = req.body;
+    const { identifier, attended } = req.body;  // Use a unique identifier instead of plate number
 
-    // Log request details
-    console.log(`POST /api/notify-attendance - Request received for Plate number: ${plateNumber}, Attended: ${attended}`);
+    console.log('POST /api/notify-attendance - Request received', { identifier, attended });
 
-    // Validate plateNumber
-    if (!plateNumber || plateNumber === 'N/A') {
-        console.error('Invalid or missing plate number');
-        return res.status(400).json({ error: 'Invalid or missing plate number.' });
+    // Validate the identifier (this could be driver ID or any unique field)
+    if (!identifier) {
+        console.error('Missing identifier');
+        return res.status(400).json({ error: 'Missing identifier.' });
     }
 
-    // Step 1: Fetch fcm_token from reportlist using the Plate_number (case-insensitive)
+    // Step 1: Fetch fcm_token from reportlist using the identifier
     connect.query(
-        `SELECT fcm_token FROM reportlist WHERE Plate_number = ? COLLATE utf8mb4_general_ci`,  // Case-insensitive match
-        [plateNumber],
+        `SELECT fcm_token 
+         FROM reportlist 
+         WHERE id = ?`,  // Change the condition to reflect the identifier you're using
+        [identifier],  // Use the identifier passed in the request body
         (err, reportRows) => {
             if (err) {
                 console.error('Database Error: Failed to fetch FCM token:', err);
@@ -716,63 +717,42 @@ app.post('/api/notify-attendance', (req, res) => {
             }
 
             if (reportRows.length === 0) {
-                console.error(`No FCM token found for Plate number: ${plateNumber}`);
-                return res.status(404).json({ error: `No FCM token found for Plate number: ${plateNumber}` });
+                console.error('No FCM token found for the identifier:', identifier);
+                return res.status(404).json({ error: 'No FCM token found for the provided identifier.' });
             }
 
             const fcm_token = reportRows[0].fcm_token;
 
             if (!fcm_token) {
-                console.error(`FCM token is null or empty for Plate number: ${plateNumber}`);
+                console.error('FCM token not found for identifier:', identifier);
                 return res.status(404).json({ error: 'FCM token not found.' });
             }
 
-            // Step 2: Fetch driver's ID from driverlist using the Plate_number
-            connect.query(
-                `SELECT id FROM driverlist WHERE Plate_number = ? COLLATE utf8mb4_general_ci`,  // Case-insensitive match
-                [plateNumber],
-                (err, driverRows) => {
-                    if (err) {
-                        console.error('Database Error: Failed to fetch driver ID:', err);
-                        return res.status(500).json({ error: 'Failed to fetch driver ID.' });
-                    }
+            // Step 2: Send notification using Firebase with fcm_token
+            const message = {
+                notification: {
+                    title: 'Seminar Attendance',
+                    body: attended ? 'Driver attended the seminar' : 'Driver did not attend the seminar',
+                },
+                token: fcm_token,
+                data: {
+                    identifier: identifier, // Send the identifier as part of the data
+                    attended: String(attended),  // Send attendance status
+                },
+            };
 
-                    if (driverRows.length === 0) {
-                        console.error(`No driver found for Plate number: ${plateNumber}`);
-                        return res.status(404).json({ error: `No driver found for Plate number: ${plateNumber}` });
-                    }
-
-                    const driverId = driverRows[0].id;
-
-                    // Step 3: Send notification using Firebase with fcm_token
-                    const message = {
-                        notification: {
-                            title: 'Seminar Attendance',
-                            body: attended ? 'Driver attended the seminar' : 'Driver did not attend the seminar',
-                        },
-                        token: fcm_token,
-                        data: {
-                            plateNumber: plateNumber,
-                            attended: String(attended),
-                            driverId: String(driverId),  // Include driver ID in the notification data
-                        },
-                    };
-
-                    admin.messaging().send(message)
-                        .then((response) => {
-                            console.log(`Notification sent successfully for Plate number: ${plateNumber}`);
-                            res.status(200).json({ 
-                                success: true, 
-                                msg: 'Notification sent successfully.', 
-                                driverId: driverId  
-                            });
-                        })
-                        .catch((error) => {
-                            console.error('Error sending notification:', error);
-                            res.status(500).json({ error: 'Failed to send notification.' });
-                        });
-                }
-            );
+            admin.messaging().send(message)
+                .then((response) => {
+                    console.log('Notification sent successfully for identifier:', identifier);
+                    res.status(200).json({ 
+                        success: true, 
+                        msg: 'Notification sent successfully.' 
+                    });
+                })
+                .catch((error) => {
+                    console.error('Error sending notification:', error);
+                    res.status(500).json({ error: 'Failed to send notification.' });
+                });
         }
     );
 });
