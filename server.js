@@ -408,7 +408,7 @@ app.get('/api/seminar', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
         }
 
-        res.json(results);  // Return the fetched seminar data (filtered if search is applied)
+        res.json(results); 
     });
 });
 
