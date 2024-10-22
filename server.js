@@ -691,13 +691,19 @@ app.post('/sendnotification', (req, res) => {
     });
 });
 
-app.post('/api/notify-attendance', (req, res) => {
+app.post('/api/attendance', (req, res) => { // Changed route to /api/attendance
     const { driverId, attended } = req.body;
+
+    // Log the request body to verify it's received
+    console.log('Received request:', { driverId, attended });
     
     // Fetch all relevant fcm_tokens from the reportlist
     const sqlQuery = 'SELECT fcm_token FROM reportlist WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)';
     db.query(sqlQuery, [driverId], (error, results) => {
-        if (error) return res.status(500).send('Error fetching FCM tokens');
+        if (error) {
+            console.error('Error fetching FCM tokens:', error);
+            return res.status(500).send('Error fetching FCM tokens');
+        }
 
         if (results.length > 0) {
             // Extract all fcm_tokens into an array
@@ -705,6 +711,10 @@ app.post('/api/notify-attendance', (req, res) => {
             const message = attended 
                 ? 'The driver attended the seminar.' 
                 : 'The driver did not attend the seminar.';
+
+            // Log the tokens and message before sending
+            console.log('Sending notifications to tokens:', fcmTokens);
+            console.log('Notification message:', message);
 
             // Create the payload for the notification
             const payload = {
@@ -726,11 +736,11 @@ app.post('/api/notify-attendance', (req, res) => {
                     res.status(500).send('Error sending notifications');
                 });
         } else {
+            console.log('No FCM tokens found for the driver');
             res.status(404).send('No FCM tokens found for the driver');
         }
     });
 });
-
 
 // Start the server 
 app.listen(PORT, () => {
