@@ -695,8 +695,9 @@ app.post('/api/notify-attendance', (req, res) => {
     const { plateNumber, attended } = req.body;
     console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
 
-    // Validation
+    // Validate plateNumber
     if (!plateNumber) {
+        console.error('Plate number is undefined or missing');
         return res.status(400).json({ error: 'Plate number is required.' });
     }
 
