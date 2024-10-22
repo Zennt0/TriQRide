@@ -692,26 +692,27 @@ app.post('/sendnotification', (req, res) => {
 });
 
 app.post('/sendseminarnotification', (req, res) => {
-    const { id, title, body, serverTime, serverDate } = req.body;
+    const { driverName, title, body, serverTime, serverDate } = req.body;  // Use driverName from the request body
 
     // Log request body
-    console.log('POST /sendseminarnotification - Request received', { id, title, body, serverTime, serverDate });
+    console.log('POST /sendseminarnotification - Request received', { driverName, title, body, serverTime, serverDate });
 
     // Check if required fields are present
-    if (!id || !title || !body || !serverTime || !serverDate) {
-        console.error('Validation Error: Missing required fields', { id, title, body, serverTime, serverDate });
-        return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
+    if (!driverName || !title || !body || !serverTime || !serverDate) {
+        console.error('Validation Error: Missing required fields', { driverName, title, body, serverTime, serverDate });
+        return res.status(400).json({ error: 'Driver name, title, body, serverTime, and serverDate are required.' });
     }
 
-    // Fetch all FCM tokens related to this driver
+    // Fetch all FCM tokens related to this driver using Driver_name
     const query = `
         SELECT fcm_token 
         FROM reportlist 
-        WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)
+        WHERE Driver_name = ?
     `;
+
     console.log('Executing query:', query);
 
-    connect.query(query, [id], (err, rows) => {
+    connect.query(query, [driverName], (err, rows) => {
         if (err) {
             console.error('Database Error: Failed to fetch FCM tokens:', err);
             return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
@@ -720,17 +721,17 @@ app.post('/sendseminarnotification', (req, res) => {
         console.log('FCM tokens fetched from reportlist:', rows);
 
         if (rows.length === 0) {
-            console.error('No FCM tokens found for driver ID:', id);
-            return res.status(404).json({ error: 'No FCM tokens found' });
+            console.error('No FCM tokens found for Driver Name:', driverName);
+            return res.status(404).json({ error: 'No FCM tokens found for this driver.' });
         }
 
-        // Send notifications
+        // Send notifications to all fetched FCM tokens
         const promises = rows.map(row => {
             const fcm_token = row?.fcm_token;
 
             if (!fcm_token) {
                 console.error('Missing FCM token for one of the reports', row);
-                return Promise.resolve(); // Skip if no token
+                return Promise.resolve();  // Skip if no token
             }
 
             const message = {
