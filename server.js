@@ -695,7 +695,7 @@ app.post('/sendnotification', (req, res) => {
 
 app.post('/api/notify-attendance', (req, res) => {
     const { plateNumber, attended } = req.body;
-    
+
     // Log request details
     console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
 
@@ -758,7 +758,7 @@ app.post('/api/notify-attendance', (req, res) => {
                         data: {
                             plateNumber: plateNumber,
                             attended: String(attended),
-                            driverId: String(driverId)  // Include driver ID in the notification data if needed
+                            driverId: String(driverId),  // Include driver ID in the notification data
                         },
                     };
 
@@ -780,6 +780,7 @@ app.post('/api/notify-attendance', (req, res) => {
         }
     );
 });
+
 // Start the server 
 app.listen(PORT, () => {
     console.log(`Server is running on port ${PORT}`);
