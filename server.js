@@ -697,7 +697,7 @@ app.post('/api/notify-attendance', (req, res) => {
     const { plateNumber, attended } = req.body;
 
     // Log request details
-    console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
+    console.log(`POST /api/notify-attendance - Request received for Plate number: ${plateNumber}, Attended: ${attended}`);
 
     // Validate plateNumber
     if (!plateNumber || plateNumber === 'N/A') {
@@ -705,12 +705,10 @@ app.post('/api/notify-attendance', (req, res) => {
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch fcm_token from reportlist using the Plate_number
+    // Step 1: Fetch fcm_token from reportlist using the Plate_number (case-insensitive)
     connect.query(
-        `SELECT fcm_token 
-         FROM reportlist 
-         WHERE Plate_number = ?`, 
-        [plateNumber], 
+        `SELECT fcm_token FROM reportlist WHERE Plate_number = ? COLLATE utf8mb4_general_ci`,  // Case-insensitive match
+        [plateNumber],
         (err, reportRows) => {
             if (err) {
                 console.error('Database Error: Failed to fetch FCM token:', err);
@@ -718,23 +716,21 @@ app.post('/api/notify-attendance', (req, res) => {
             }
 
             if (reportRows.length === 0) {
-                console.error('No FCM token found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
+                console.error(`No FCM token found for Plate number: ${plateNumber}`);
+                return res.status(404).json({ error: `No FCM token found for Plate number: ${plateNumber}` });
             }
 
             const fcm_token = reportRows[0].fcm_token;
 
             if (!fcm_token) {
-                console.error('FCM token not found for Plate number:', plateNumber);
+                console.error(`FCM token is null or empty for Plate number: ${plateNumber}`);
                 return res.status(404).json({ error: 'FCM token not found.' });
             }
 
             // Step 2: Fetch driver's ID from driverlist using the Plate_number
             connect.query(
-                `SELECT id 
-                 FROM driverlist 
-                 WHERE Plate_number = ?`, 
-                [plateNumber], 
+                `SELECT id FROM driverlist WHERE Plate_number = ? COLLATE utf8mb4_general_ci`,  // Case-insensitive match
+                [plateNumber],
                 (err, driverRows) => {
                     if (err) {
                         console.error('Database Error: Failed to fetch driver ID:', err);
@@ -742,8 +738,8 @@ app.post('/api/notify-attendance', (req, res) => {
                     }
 
                     if (driverRows.length === 0) {
-                        console.error('No driver found for Plate number:', plateNumber);
-                        return res.status(404).json({ error: 'No driver found for the provided Plate number.' });
+                        console.error(`No driver found for Plate number: ${plateNumber}`);
+                        return res.status(404).json({ error: `No driver found for Plate number: ${plateNumber}` });
                     }
 
                     const driverId = driverRows[0].id;
@@ -764,7 +760,7 @@ app.post('/api/notify-attendance', (req, res) => {
 
                     admin.messaging().send(message)
                         .then((response) => {
-                            console.log('Notification sent successfully for Plate number:', plateNumber);
+                            console.log(`Notification sent successfully for Plate number: ${plateNumber}`);
                             res.status(200).json({ 
                                 success: true, 
                                 msg: 'Notification sent successfully.', 
@@ -780,6 +776,7 @@ app.post('/api/notify-attendance', (req, res) => {
         }
     );
 });
+
 
 // Start the server 
 app.listen(PORT, () => {
