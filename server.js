@@ -696,80 +696,41 @@ app.post('/sendnotification', (req, res) => {
 app.post('/api/notify-attendance', (req, res) => {
     const { plateNumber, attended } = req.body;
     
-    console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
-
-    // Validate plateNumber
-    if (!plateNumber || plateNumber === 'N/A') {
+    if (!plateNumber) {
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch fcm_token from reportlist using Plate_number
-    connect.query(`
-        SELECT fcm_token 
-        FROM reportlist 
-        WHERE Plate_number = ?
-    `, [plateNumber], (err, reportRows) => {
-        if (err) {
-            console.error('Database Error: Failed to fetch FCM token:', err);
+    // Fetch the FCM token and send the notification
+    connect.query(`SELECT fcm_token FROM reportlist WHERE Plate_number = ?`, [plateNumber], (err, reportRows) => {
+        if (err || reportRows.length === 0) {
             return res.status(500).json({ error: 'Failed to fetch FCM token.' });
-        }
-
-        if (reportRows.length === 0) {
-            return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
         }
 
         const fcm_token = reportRows[0].fcm_token;
 
-        if (!fcm_token) {
-            return res.status(404).json({ error: 'FCM token not found.' });
-        }
+        // Build the notification message
+        const message = {
+            notification: {
+                title: 'Seminar Attendance',
+                body: attended ? 'The driver has attended the seminar.' : 'The driver did not attend the seminar.',
+            },
+            token: fcm_token,
+            data: {
+                plateNumber,
+                attended: String(attended),
+            },
+        };
 
-        // Step 2: Fetch driver's ID from driverlist using the Plate_number
-        connect.query(`
-            SELECT id 
-            FROM driverlist
-            WHERE Plate_number = ?
-        `, [plateNumber], (err, driverRows) => {
-            if (err) {
-                return res.status(500).json({ error: 'Failed to fetch driver ID.' });
-            }
-
-            if (driverRows.length === 0) {
-                return res.status(404).json({ error: 'No driver found for the provided Plate number.' });
-            }
-
-            const driverId = driverRows[0].id;
-
-            // Step 3: Send notification using Firebase with fcm_token
-            const message = {
-                notification: {
-                    title: attended ? 'Seminar Attendance' : 'Seminar Absence',
-                    body: attended ? 
-                        `Driver with Plate Number ${plateNumber} attended the seminar.` :
-                        `Driver with Plate Number ${plateNumber} did not attend the seminar.`,
-                },
-                token: fcm_token,
-                data: {
-                    plateNumber: plateNumber,
-                    attended: String(attended),
-                    driverId: String(driverId),
-                },
-            };
-
-            admin.messaging().send(message)
-                .then((response) => {
-                    console.log('Notification sent successfully for Plate number:', plateNumber);
-                    res.status(200).json({ 
-                        success: true, 
-                        msg: 'Notification sent successfully.', 
-                        driverId: driverId 
-                    });
-                })
-                .catch((error) => {
-                    console.error('Error sending notification:', error);
-                    res.status(500).json({ error: 'Failed to send notification.' });
-                });
-        });
+        // Send the notification via Firebase Cloud Messaging
+        admin.messaging().send(message)
+            .then((response) => {
+                console.log('Notification sent:', response);
+                res.status(200).json({ success: true, msg: 'Notification sent successfully.' });
+            })
+            .catch((error) => {
+                console.error('Error sending notification:', error);
+                res.status(500).json({ error: 'Failed to send notification.' });
+            });
     });
 });
 // Start the server 
