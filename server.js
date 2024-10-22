@@ -695,12 +695,14 @@ app.post('/sendnotification', (req, res) => {
 
 app.post('/api/notify-attendance', (req, res) => {
     const { plateNumber, attended } = req.body;
+    
+    // Log request details
     console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
 
     // Validate plateNumber
-    if (!plateNumber) {
-        console.error('Plate number is undefined or missing');
-        return res.status(400).json({ error: 'Plate number is required.' });
+    if (!plateNumber || plateNumber === 'N/A') {
+        console.error('Invalid or missing plate number');
+        return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
     // Query the reportlist table to get the fcm_token based on the plate number
@@ -711,21 +713,21 @@ app.post('/api/notify-attendance', (req, res) => {
     `, [plateNumber], (err, rows) => {
         if (err) {
             console.error('Database Error: Failed to fetch FCM token:', err);
-            return res.status(500).json({ error: 'Failed to fetch FCM token' });
+            return res.status(500).json({ error: 'Failed to fetch FCM token.' });
         }
 
         if (rows.length === 0) {
             console.error('No FCM token found for Plate number:', plateNumber);
-            return res.status(404).json({ error: 'No FCM token found for the provided Plate number' });
+            return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
         }
 
         const fcm_token = rows[0].fcm_token;
         if (!fcm_token) {
             console.error('FCM token not found for Plate number:', plateNumber);
-            return res.status(404).json({ error: 'FCM token not found' });
+            return res.status(404).json({ error: 'FCM token not found.' });
         }
 
-        // Send notification using the fcm_token
+        // Prepare the notification message
         const message = {
             notification: {
                 title: 'Seminar Attendance',
@@ -742,11 +744,11 @@ app.post('/api/notify-attendance', (req, res) => {
         admin.messaging().send(message)
             .then((response) => {
                 console.log('Notification sent successfully for Plate number:', plateNumber);
-                res.status(200).json({ success: true, msg: 'Notification sent successfully' });
+                res.status(200).json({ success: true, msg: 'Notification sent successfully.' });
             })
             .catch((error) => {
                 console.error('Error sending notification:', error);
-                res.status(500).json({ error: 'Failed to send notification' });
+                res.status(500).json({ error: 'Failed to send notification.' });
             });
     });
 });
