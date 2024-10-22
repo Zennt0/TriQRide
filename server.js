@@ -768,7 +768,7 @@ app.post('/api/notify-attendance', (req, res) => {
                             res.status(200).json({ 
                                 success: true, 
                                 msg: 'Notification sent successfully.', 
-                                driverId: driverId  // Optionally return the driver ID in the response
+                                driverId: driverId  
                             });
                         })
                         .catch((error) => {
