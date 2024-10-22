@@ -406,6 +406,8 @@ app.get('/api/seminar', (req, res) => {
         if (err) {
             console.error('Error fetching seminar data:', err);
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
+            console.log('Seminar data fetched from DB:', rows);  // Log the response from DB
+             res.json(rows);
         }
 
         res.json(results); 
