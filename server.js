@@ -691,54 +691,67 @@ app.post('/sendnotification', (req, res) => {
     });
 });
 
-app.post('/api/attendance', (req, res) => { // Changed route to /api/attendance
-    const { driverId, attended } = req.body;
+app.post('/sendseminarnotification', (req, res) => {
+    const { id, title, body, serverTime, serverDate } = req.body;
+    console.log('POST /sendseminarnotification - Request received', { id, title, body, serverTime, serverDate });
 
-    // Log the request body to verify it's received
-    console.log('Received request:', { driverId, attended });
-    
-    // Fetch all relevant fcm_tokens from the reportlist
-    const sqlQuery = 'SELECT fcm_token FROM reportlist WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)';
-    db.query(sqlQuery, [driverId], (error, results) => {
-        if (error) {
-            console.error('Error fetching FCM tokens:', error);
-            return res.status(500).send('Error fetching FCM tokens');
+    // Validation checks
+    if (!id || !title || !body || !serverTime || !serverDate) {
+        console.error('Validation Error: Missing required fields');
+        return res.status(400).json({ error: 'ID, title, body, serverTime, and serverDate are required.' });
+    }
+
+    // Fetch all FCM tokens related to this driver (or multiple drivers, if needed)
+    connect.query(`
+        SELECT fcm_token 
+        FROM reportlist 
+        WHERE Plate_number = (SELECT Plate_number FROM driverlist WHERE id = ?)
+    `, [id], (err, rows) => {
+        if (err) {
+            console.error('Database Error: Failed to fetch FCM tokens:', err);
+            return res.status(500).json({ error: 'Failed to fetch FCM tokens' });
         }
 
-        if (results.length > 0) {
-            // Extract all fcm_tokens into an array
-            const fcmTokens = results.map(result => result.fcm_token);
-            const message = attended 
-                ? 'The driver attended the seminar.' 
-                : 'The driver did not attend the seminar.';
+        if (rows.length === 0) {
+            console.error('No report found for driver ID:', id);
+            return res.status(404).json({ error: 'No report found for the provided driver ID' });
+        }
 
-            // Log the tokens and message before sending
-            console.log('Sending notifications to tokens:', fcmTokens);
-            console.log('Notification message:', message);
+        // Send notification to each fetched FCM token
+        rows.forEach(row => {
+            const fcm_token = row?.fcm_token;
 
-            // Create the payload for the notification
-            const payload = {
+            if (!fcm_token) {
+                console.error('FCM token not found for a driver');
+                return;
+            }
+
+            // Prepare the message to be sent
+            const message = {
                 notification: {
-                    title: 'Seminar Attendance Update',
-                    body: message,
+                    title: title,
+                    body: body,
                 },
-                tokens: fcmTokens // Send to multiple tokens
+                token: fcm_token,
+                data: {
+                    serverTime: serverTime,
+                    serverDate: serverDate,
+                },
             };
 
-            // Send notification to multiple devices
-            admin.messaging().sendMulticast(payload)
-                .then(response => {
-                    console.log('Notifications sent successfully:', response);
-                    res.json({ success: true, message: 'Notifications sent successfully' });
+            console.log('Sending seminar notification:', message);
+
+            // Send the notification via FCM
+            admin.messaging().send(message)
+                .then((response) => {
+                    console.log('Seminar notification sent successfully to FCM token:', fcm_token);
                 })
-                .catch(error => {
-                    console.error('Error sending notifications:', error);
-                    res.status(500).send('Error sending notifications');
+                .catch((error) => {
+                    console.error('Error sending seminar notification to FCM token:', fcm_token, error);
                 });
-        } else {
-            console.log('No FCM tokens found for the driver');
-            res.status(404).send('No FCM tokens found for the driver');
-        }
+        });
+
+        res.status(200).json({ success: true, msg: 'Seminar notifications sent successfully' });
     });
 });
 
