@@ -705,6 +705,7 @@ app.post('/api/notify-attendance', (req, res) => {
     }
 
     // Step 1: Fetch fcm_tokens from reportlist using the plate number
+    console.log('Fetching FCM tokens for Plate Number:', plateNumber);
     connect.query(
         `SELECT fcm_token 
          FROM reportlist 
@@ -716,12 +717,15 @@ app.post('/api/notify-attendance', (req, res) => {
                 return res.status(500).json({ error: 'Failed to fetch FCM tokens.' });
             }
 
+            console.log('Report rows fetched:', reportRows);
+
             if (reportRows.length === 0) {
                 console.error('No FCM tokens found for Plate number:', plateNumber);
                 return res.status(404).json({ error: 'No FCM tokens found for the provided Plate number.' });
             }
 
             const fcmTokens = reportRows.map(row => row.fcm_token).filter(token => token);
+            console.log('Filtered FCM tokens:', fcmTokens);
 
             if (fcmTokens.length === 0) {
                 console.error('No valid FCM tokens found for Plate number:', plateNumber);
@@ -732,6 +736,9 @@ app.post('/api/notify-attendance', (req, res) => {
             const currentDateTime = new Date();  // Get current server time
             const formattedDate = currentDateTime.toLocaleDateString();  // Format date (e.g., MM/DD/YYYY)
             const formattedTime = currentDateTime.toLocaleTimeString();  // Format time (e.g., HH:MM:SS AM/PM)
+
+            console.log('Current Date:', formattedDate);
+            console.log('Current Time:', formattedTime);
 
             // Step 3: Create the notification message for multicast
             const message = {
@@ -747,6 +754,8 @@ app.post('/api/notify-attendance', (req, res) => {
                     time: formattedTime
                 }
             };
+
+            console.log('Sending multicast notification with message:', message);
 
             // Step 4: Send multicast notification using Firebase with the tokens
             admin.messaging().sendMulticast(message)
@@ -773,12 +782,12 @@ app.post('/api/notify-attendance', (req, res) => {
                 })
                 .catch((error) => {
                     console.error('Error sending multicast notification:', error);
+                    console.error('Full error response:', error);
                     res.status(500).json({ error: 'Failed to send notification.' });
                 });
         }
     );
 });
-
 
 // Start the server 
 app.listen(PORT, () => {
