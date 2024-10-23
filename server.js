@@ -723,6 +723,10 @@ app.post('/api/notify-attendance', (req, res) => {
 
             const fcmTokens = reportRows.map(row => row.fcm_token);  // Collect all tokens
 
+            // Log the tokens for debugging
+            console.log('FCM Tokens:', fcmTokens);
+
+            // Ensure we have tokens to send
             if (!fcmTokens.length) {
                 console.error('No FCM tokens found for Plate number:', plateNumber);
                 return res.status(404).json({ error: 'No FCM tokens found.' });
@@ -730,8 +734,6 @@ app.post('/api/notify-attendance', (req, res) => {
 
             // Step 2: Get current server time and date
             const currentDateTime = new Date();  // Get current server time
-
-            // Format the date and time (Optional: you can format it as needed)
             const formattedDate = currentDateTime.toLocaleDateString();
             const formattedTime = currentDateTime.toLocaleTimeString();
 
@@ -744,43 +746,62 @@ app.post('/api/notify-attendance', (req, res) => {
                     title: 'Seminar Attendance',
                     body: notificationBody,  // Custom message body
                 },
-                tokens: fcmTokens,  // Send notification to multiple tokens
                 data: {
                     plateNumber: plateNumber,  // Send the plate number as part of the data
                     attended: String(attended),  // Send attendance status
                     date: formattedDate,  // Send the server date
                     time: formattedTime   // Send the server time
-                },
+                }
             };
 
-            // Use sendMulticast to send to multiple devices
-            admin.messaging().sendMulticast(message)
-                .then((response) => {
-                    console.log('Notification Response:', response);
+            // Check if the number of tokens exceeds 500, and split them into batches
+            const tokenBatches = [];
+            while (fcmTokens.length > 0) {
+                tokenBatches.push(fcmTokens.splice(0, 500));  // Split tokens into batches of 500 or fewer
+            }
 
-                    // Check for any failed messages and log them
-                    const failedTokens = [];
-                    response.responses.forEach((resp, idx) => {
-                        if (!resp.success) {
-                            console.error(`Failed to send notification to token: ${fcmTokens[idx]}, Error: ${resp.error.message}`);
-                            failedTokens.push(fcmTokens[idx]);  // Collect the failed tokens
+            // Send notifications batch by batch
+            Promise.all(tokenBatches.map(tokens => {
+                return admin.messaging().sendMulticast({ ...message, tokens })
+                    .then((response) => {
+                        console.log('Notification Response:', response);
+
+                        // Check for any failed messages and log them
+                        const failedTokens = [];
+                        response.responses.forEach((resp, idx) => {
+                            if (!resp.success) {
+                                console.error(`Failed to send notification to token: ${tokens[idx]}, Error: ${resp.error.message}`);
+                                failedTokens.push(tokens[idx]);  // Collect the failed tokens
+                            }
+                        });
+
+                        if (failedTokens.length > 0) {
+                            console.log('The following tokens were invalid or failed:', failedTokens);
                         }
-                    });
 
-                    if (failedTokens.length > 0) {
-                        console.log('The following tokens were invalid or failed:', failedTokens);
-                    }
-
-                    res.status(200).json({
-                        success: true,
-                        msg: `Notification sent with ${response.successCount} success and ${response.failureCount} failures.`,
-                        failedTokens,  // Return the failed tokens to handle them later
+                        return { successCount: response.successCount, failureCount: response.failureCount, failedTokens };
+                    })
+                    .catch((error) => {
+                        console.error('Error sending notifications:', error.message);
+                        return { error: 'Failed to send notifications.', errorMessage: error.message };
                     });
-                })
-                .catch((error) => {
-                    console.error('Error sending notifications:', error.message);
-                    res.status(500).json({ error: 'Failed to send notifications.' });
+            }))
+            .then(results => {
+                // Aggregate results
+                const totalSuccess = results.reduce((sum, r) => sum + r.successCount, 0);
+                const totalFailures = results.reduce((sum, r) => sum + r.failureCount, 0);
+                const allFailedTokens = results.flatMap(r => r.failedTokens || []);
+
+                res.status(200).json({
+                    success: true,
+                    msg: `Notification sent with ${totalSuccess} success and ${totalFailures} failures.`,
+                    failedTokens: allFailedTokens  // Return the failed tokens to handle them later
                 });
+            })
+            .catch(error => {
+                console.error('Error sending notifications in batches:', error);
+                res.status(500).json({ error: 'Failed to send notifications.' });
+            });
         }
     );
 });
