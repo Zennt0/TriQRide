@@ -724,8 +724,12 @@ app.post('/api/notify-attendance', (req, res) => {
                 return res.status(404).json({ error: 'No FCM tokens found for the provided Plate number.' });
             }
 
-            const fcmTokens = reportRows.map(row => row.fcm_token).filter(token => token);
-            console.log('Filtered FCM tokens:', fcmTokens);
+            let fcmTokens = reportRows.map(row => row.fcm_token).filter(token => token);
+            console.log('Original FCM tokens:', fcmTokens);
+
+            // Remove duplicate tokens
+            fcmTokens = [...new Set(fcmTokens)];
+            console.log('Filtered unique FCM tokens:', fcmTokens);
 
             if (fcmTokens.length === 0) {
                 console.error('No valid FCM tokens found for Plate number:', plateNumber);
@@ -746,7 +750,7 @@ app.post('/api/notify-attendance', (req, res) => {
                     title: 'Seminar Attendance',
                     body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`,
                 },
-                tokens: fcmTokens, // Array of FCM tokens
+                tokens: fcmTokens, // Array of unique FCM tokens
                 data: {
                     plateNumber: plateNumber,
                     attended: String(attended),
@@ -782,7 +786,6 @@ app.post('/api/notify-attendance', (req, res) => {
                 })
                 .catch((error) => {
                     console.error('Error sending multicast notification:', error);
-                    console.error('Full error response:', error);
                     res.status(500).json({ error: 'Failed to send notification.' });
                 });
         }
