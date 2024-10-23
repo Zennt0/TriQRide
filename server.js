@@ -89,7 +89,7 @@ app.post('/login', (req, res) => {
 app.post('/register', async (req, res) => {
     const { username, fullname, password } = req.body;
 
-    console.log('Registration attempt for username:', username); // Log the username
+    console.log('Registration attempt for username:', username); 
 
     connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
         if (err) {
