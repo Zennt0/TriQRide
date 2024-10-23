@@ -704,7 +704,7 @@ app.post('/api/notify-attendance', (req, res) => {
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch all fcm_tokens from reportlist using the plate number
+    // Step 1: Fetch fcm_token from reportlist using the plate number
     connect.query(
         `SELECT fcm_token 
          FROM reportlist 
@@ -712,96 +712,55 @@ app.post('/api/notify-attendance', (req, res) => {
         [plateNumber], 
         (err, reportRows) => {
             if (err) {
-                console.error('Database Error: Failed to fetch FCM tokens:', err);
-                return res.status(500).json({ error: 'Failed to fetch FCM tokens.' });
+                console.error('Database Error: Failed to fetch FCM token:', err);
+                return res.status(500).json({ error: 'Failed to fetch FCM token.' });
             }
 
             if (reportRows.length === 0) {
-                console.error('No FCM tokens found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'No FCM tokens found for the provided Plate number.' });
+                console.error('No FCM token found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
             }
 
-            const fcmTokens = reportRows.map(row => row.fcm_token);  // Collect all tokens
+            const fcm_token = reportRows[0].fcm_token;
 
-            // Log the tokens for debugging
-            console.log('FCM Tokens:', fcmTokens);
-
-            // Ensure we have tokens to send
-            if (!fcmTokens.length) {
-                console.error('No FCM tokens found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'No FCM tokens found.' });
+            if (!fcm_token) {
+                console.error('FCM token not found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'FCM token not found.' });
             }
 
             // Step 2: Get current server time and date
             const currentDateTime = new Date();  // Get current server time
-            const formattedDate = currentDateTime.toLocaleDateString();
-            const formattedTime = currentDateTime.toLocaleTimeString();
+            const formattedDate = currentDateTime.toLocaleDateString();  // Format date (e.g., MM/DD/YYYY)
+            const formattedTime = currentDateTime.toLocaleTimeString();  // Format time (e.g., HH:MM:SS AM/PM)
 
-            // Step 3: Create a custom notification body with plate number and attendance status
-            const notificationBody = `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`;
-
-            // Step 4: Send notification using Firebase to all fcm_tokens
+            // Step 3: Create the notification message
             const message = {
                 notification: {
                     title: 'Seminar Attendance',
-                    body: notificationBody,  // Custom message body
+                    body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`,
                 },
+                token: fcm_token,
                 data: {
                     plateNumber: plateNumber,  // Send the plate number as part of the data
                     attended: String(attended),  // Send attendance status
                     date: formattedDate,  // Send the server date
                     time: formattedTime   // Send the server time
-                }
+                },
             };
 
-            // Check if the number of tokens exceeds 500, and split them into batches
-            const tokenBatches = [];
-            while (fcmTokens.length > 0) {
-                tokenBatches.push(fcmTokens.splice(0, 500));  // Split tokens into batches of 500 or fewer
-            }
-
-            // Send notifications batch by batch
-            Promise.all(tokenBatches.map(tokens => {
-                return admin.messaging().sendMulticast({ ...message, tokens })
-                    .then((response) => {
-                        console.log('Notification Response:', response);
-
-                        // Check for any failed messages and log them
-                        const failedTokens = [];
-                        response.responses.forEach((resp, idx) => {
-                            if (!resp.success) {
-                                console.error(`Failed to send notification to token: ${tokens[idx]}, Error: ${resp.error.message}`);
-                                failedTokens.push(tokens[idx]);  // Collect the failed tokens
-                            }
-                        });
-
-                        if (failedTokens.length > 0) {
-                            console.log('The following tokens were invalid or failed:', failedTokens);
-                        }
-
-                        return { successCount: response.successCount, failureCount: response.failureCount, failedTokens };
-                    })
-                    .catch((error) => {
-                        console.error('Error sending notifications:', error.message);
-                        return { error: 'Failed to send notifications.', errorMessage: error.message };
+            // Step 4: Send notification using Firebase with fcm_token
+            admin.messaging().send(message)
+                .then((response) => {
+                    console.log('Notification sent successfully for Plate number:', plateNumber);
+                    res.status(200).json({ 
+                        success: true, 
+                        msg: 'Notification sent successfully.' 
                     });
-            }))
-            .then(results => {
-                // Aggregate results
-                const totalSuccess = results.reduce((sum, r) => sum + r.successCount, 0);
-                const totalFailures = results.reduce((sum, r) => sum + r.failureCount, 0);
-                const allFailedTokens = results.flatMap(r => r.failedTokens || []);
-
-                res.status(200).json({
-                    success: true,
-                    msg: `Notification sent with ${totalSuccess} success and ${totalFailures} failures.`,
-                    failedTokens: allFailedTokens  // Return the failed tokens to handle them later
+                })
+                .catch((error) => {
+                    console.error('Error sending notification:', error);
+                    res.status(500).json({ error: 'Failed to send notification.' });
                 });
-            })
-            .catch(error => {
-                console.error('Error sending notifications in batches:', error);
-                res.status(500).json({ error: 'Failed to send notifications.' });
-            });
         }
     );
 });
