@@ -387,10 +387,10 @@ app.get('/api/seminar', (req, res) => {
 
     // Base query to fetch drivers with 3 or more violations
     let query = `
-        SELECT 
-            Driver_name AS owner, 
-            Plate_number AS franchise, 
-            COUNT(Violations) AS total_violations
+         SELECT 
+             Driver_name, 
+             Plate_number, 
+             COUNT(Violations) AS total_violations
         FROM reportlist
         GROUP BY Driver_name, Plate_number
         HAVING COUNT(Violations) >= 3
