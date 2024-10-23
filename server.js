@@ -746,56 +746,45 @@ app.post('/api/notify-attendance', (req, res) => {
 
             // Step 3: Create the notification message for multicast
             const messages = fcmTokens.map(token => ({
-                notification: {
-                    title: 'Seminar Attendance',
-                    body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`,
-                },
-                token: token,
-                data: {
-                    plateNumber: plateNumber,
-                    attended: String(attended),
-                    date: formattedDate,
-                    time: formattedTime
+    notification: {
+        title: 'Seminar Attendance',
+        body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`,
+    },
+    token: token, // Individual token
+    data: {
+        plateNumber: plateNumber,
+        attended: String(attended),
+        date: formattedDate,
+        time: formattedTime
+    }
+}));
+
+// Use sendAll to send to multiple tokens at once, but handle errors gracefully.
+admin.messaging().sendAll(messages)
+    .then((response) => {
+        console.log(`${response.successCount} messages were sent successfully.`);
+        console.log(`${response.failureCount} messages failed.`);
+        if (response.failureCount > 0) {
+            const failedTokens = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    console.error(`Error for token ${fcmTokens[idx]}:`, resp.error);
+                    failedTokens.push(fcmTokens[idx]);
                 }
-            }));
-
-            // Step 4: Send the messages and handle invalid tokens
-            admin.messaging().sendAll(messages)
-                .then((response) => {
-                    console.log(`${response.successCount} messages were sent successfully.`);
-                    console.log(`${response.failureCount} messages failed.`);
-
-                    // Handle failed messages
-                    if (response.failureCount > 0) {
-                        const failedTokens = [];
-                        response.responses.forEach((resp, idx) => {
-                            if (!resp.success) {
-                                console.log(`Error for token ${fcmTokens[idx]}:`, resp.error);
-
-                                // Check for invalid or unregistered tokens
-                                if (resp.error.code === 'messaging/invalid-registration-token' || 
-                                    resp.error.code === 'messaging/registration-token-not-registered') {
-                                    console.log(`Invalid or unregistered token: ${fcmTokens[idx]}`);
-                                }
-
-                                // Add the failed token to the list for further processing/logging if needed
-                                failedTokens.push(fcmTokens[idx]);
-                            }
-                        });
-                        console.log('Failed tokens:', failedTokens);
-                    }
-
-                    res.status(200).json({ 
-                        success: true, 
-                        msg: 'Notification sent successfully.',
-                        successCount: response.successCount,
-                        failureCount: response.failureCount
-                    });
-                })
-                .catch((error) => {
-                    console.error('Error sending notifications:', error);
-                    res.status(500).json({ error: 'Failed to send notifications.' });
-                });
+            });
+            console.log('Failed tokens:', failedTokens);
+        }
+        res.status(200).json({
+            success: true,
+            msg: 'Notification sent successfully.',
+            successCount: response.successCount,
+            failureCount: response.failureCount
+        });
+    })
+    .catch((error) => {
+        console.error('Error sending notifications:', error);
+        res.status(500).json({ error: 'Failed to send notifications.' });
+    });
         }
     );
 });
