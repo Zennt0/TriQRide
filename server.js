@@ -704,8 +704,7 @@ app.post('/api/notify-attendance', (req, res) => {
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch fcm_tokens from reportlist using the plate number
-    console.log('Fetching FCM tokens for Plate Number:', plateNumber);
+    // Step 1: Fetch all fcm_tokens from reportlist using the plate number
     connect.query(
         `SELECT fcm_token 
          FROM reportlist 
@@ -717,74 +716,54 @@ app.post('/api/notify-attendance', (req, res) => {
                 return res.status(500).json({ error: 'Failed to fetch FCM tokens.' });
             }
 
-            console.log('Report rows fetched:', reportRows);
-
             if (reportRows.length === 0) {
                 console.error('No FCM tokens found for Plate number:', plateNumber);
                 return res.status(404).json({ error: 'No FCM tokens found for the provided Plate number.' });
             }
 
-            let fcmTokens = reportRows.map(row => row.fcm_token).filter(token => token);
-            console.log('Original FCM tokens:', fcmTokens);
+            const fcmTokens = reportRows.map(row => row.fcm_token);  // Collect all tokens
 
-            // Remove duplicate tokens
-            fcmTokens = [...new Set(fcmTokens)];
-            console.log('Filtered unique FCM tokens:', fcmTokens);
-
-            if (fcmTokens.length === 0) {
-                console.error('No valid FCM tokens found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'No valid FCM tokens found.' });
+            if (!fcmTokens.length) {
+                console.error('No FCM tokens found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'No FCM tokens found.' });
             }
 
-            // Step 2: Get current server time and date
+            // Step 2: Get current server time and date in local time
             const currentDateTime = new Date();  // Get current server time
-            const formattedDate = currentDateTime.toLocaleDateString();  // Format date (e.g., MM/DD/YYYY)
-            const formattedTime = currentDateTime.toLocaleTimeString();  // Format time (e.g., HH:MM:SS AM/PM)
 
-            console.log('Current Date:', formattedDate);
-            console.log('Current Time:', formattedTime);
+            // Format the date and time using local time settings without a specific locale
+            const options = { year: 'numeric', month: '2-digit', day: '2-digit' };
+            const formattedDate = currentDateTime.toLocaleDateString(options); // Default format based on server's locale
+            const formattedTime = currentDateTime.toLocaleTimeString({ hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true }); // HH:MM:SS AM/PM format
 
-            // Step 3: Create the notification message for multicast
-            const messages = fcmTokens.map(token => ({
-    notification: {
-        title: 'Seminar Attendance',
-        body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`,
-    },
-    token: token, // Individual token
-    data: {
-        plateNumber: plateNumber,
-        attended: String(attended),
-        date: formattedDate,
-        time: formattedTime
-    }
-}));
+            // Step 3: Send notification using Firebase to all fcm_tokens
+            const message = {
+                notification: {
+                    title: 'Seminar Attendance',
+                    body: attended ? 'Driver attended the seminar' : 'Driver did not attend the seminar',
+                },
+                tokens: fcmTokens,  // Send notification to multiple tokens
+                data: {
+                    plateNumber: plateNumber, // Send the plate number as part of the data
+                    attended: String(attended),  // Send attendance status
+                    serverDate: formattedDate,  // Send the server date
+                    serverTime: formattedTime   // Send the server time
+                },
+            };
 
-// Use sendAll to send to multiple tokens at once, but handle errors gracefully.
-admin.messaging().sendAll(messages)
-    .then((response) => {
-        console.log(`${response.successCount} messages were sent successfully.`);
-        console.log(`${response.failureCount} messages failed.`);
-        if (response.failureCount > 0) {
-            const failedTokens = [];
-            response.responses.forEach((resp, idx) => {
-                if (!resp.success) {
-                    console.error(`Error for token ${fcmTokens[idx]}:`, resp.error);
-                    failedTokens.push(fcmTokens[idx]);
-                }
-            });
-            console.log('Failed tokens:', failedTokens);
-        }
-        res.status(200).json({
-            success: true,
-            msg: 'Notification sent successfully.',
-            successCount: response.successCount,
-            failureCount: response.failureCount
-        });
-    })
-    .catch((error) => {
-        console.error('Error sending notifications:', error);
-        res.status(500).json({ error: 'Failed to send notifications.' });
-    });
+            admin.messaging().sendMulticast(message)  // Use sendMulticast to send to multiple devices
+                .then((response) => {
+                    console.log('Notification sent successfully for Plate number:', plateNumber, 'Response:', response);
+                    res.status(200).json({ 
+                        success: true, 
+                        msg: 'Notification sent successfully.',
+                        responses: response.responses,  // Return response details for each message
+                    });
+                })
+                .catch((error) => {
+                    console.error('Error sending notification:', error);
+                    res.status(500).json({ error: 'Failed to send notification.' });
+                });
         }
     );
 });
