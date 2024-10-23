@@ -753,18 +753,33 @@ app.post('/api/notify-attendance', (req, res) => {
                 },
             };
 
-            admin.messaging().sendMulticast(message)  // Use sendMulticast to send to multiple devices
+            // Use sendMulticast to send to multiple devices
+            admin.messaging().sendMulticast(message)
                 .then((response) => {
-                    console.log('Notification sent successfully for Plate number:', plateNumber, 'Response:', response);
-                    res.status(200).json({ 
-                        success: true, 
-                        msg: 'Notification sent successfully.',
-                        responses: response.responses,  // Return response details for each message
+                    console.log('Notification Response:', response);
+
+                    // Check for any failed messages and log them
+                    const failedTokens = [];
+                    response.responses.forEach((resp, idx) => {
+                        if (!resp.success) {
+                            console.error(`Failed to send notification to token: ${fcmTokens[idx]}, Error: ${resp.error.message}`);
+                            failedTokens.push(fcmTokens[idx]);  // Collect the failed tokens
+                        }
+                    });
+
+                    if (failedTokens.length > 0) {
+                        console.log('The following tokens were invalid or failed:', failedTokens);
+                    }
+
+                    res.status(200).json({
+                        success: true,
+                        msg: `Notification sent with ${response.successCount} success and ${response.failureCount} failures.`,
+                        failedTokens,  // Return the failed tokens to handle them later
                     });
                 })
                 .catch((error) => {
-                    console.error('Error sending notification:', error);
-                    res.status(500).json({ error: 'Failed to send notification.' });
+                    console.error('Error sending notifications:', error.message);
+                    res.status(500).json({ error: 'Failed to send notifications.' });
                 });
         }
     );
