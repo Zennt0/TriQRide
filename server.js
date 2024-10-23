@@ -111,7 +111,7 @@ app.post('/register', async (req, res) => {
                     console.error('Error creating account:', err); // Log the error
                     return res.status(500).json({ message: 'Error creating account' });
                 }
-                console.log('Account created successfully for username:', username); // Log success message
+                console.log('Account created successfully for username:', username); 
                 res.status(201).json({ message: 'Account created successfully' });
             });
         } catch (error) {
