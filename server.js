@@ -763,31 +763,32 @@ app.post('/api/notify-attendance', (req, res) => {
 
             // Step 4: Send multicast notification using Firebase with the tokens
             admin.messaging().sendMulticast(message)
-                .then((response) => {
-                    console.log(`${response.successCount} messages were sent successfully.`);
-                    console.log(`${response.failureCount} messages failed.`);
-                    
-                    if (response.failureCount > 0) {
-                        const failedTokens = [];
-                        response.responses.forEach((resp, idx) => {
-                            if (!resp.success) {
-                                failedTokens.push(fcmTokens[idx]);
-                            }
-                        });
-                        console.log('Failed tokens:', failedTokens);
-                    }
+    .then((response) => {
+        console.log(`${response.successCount} messages were sent successfully.`);
+        console.log(`${response.failureCount} messages failed.`);
+        
+        if (response.failureCount > 0) {
+            const failedTokens = [];
+            response.responses.forEach((resp, idx) => {
+                if (!resp.success) {
+                    console.log(`Error for token ${fcmTokens[idx]}:`, resp.error); // Log detailed error
+                    failedTokens.push(fcmTokens[idx]);
+                }
+            });
+            console.log('Failed tokens:', failedTokens);
+        }
 
-                    res.status(200).json({ 
-                        success: true, 
-                        msg: 'Notification sent successfully.',
-                        successCount: response.successCount,
-                        failureCount: response.failureCount
-                    });
-                })
-                .catch((error) => {
-                    console.error('Error sending multicast notification:', error);
-                    res.status(500).json({ error: 'Failed to send notification.' });
-                });
+        res.status(200).json({ 
+            success: true, 
+            msg: 'Notification sent successfully.',
+            successCount: response.successCount,
+            failureCount: response.failureCount
+        });
+    })
+    .catch((error) => {
+        console.error('Error sending multicast notification:', error);
+        res.status(500).json({ error: 'Failed to send notification.' });
+    });
         }
     );
 });
