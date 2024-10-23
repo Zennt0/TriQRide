@@ -704,7 +704,7 @@ app.post('/api/notify-attendance', (req, res) => {
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch fcm_token from reportlist using the plate number
+    // Step 1: Fetch all fcm_tokens from reportlist using the plate number
     connect.query(
         `SELECT fcm_token 
          FROM reportlist 
@@ -712,41 +712,54 @@ app.post('/api/notify-attendance', (req, res) => {
         [plateNumber], 
         (err, reportRows) => {
             if (err) {
-                console.error('Database Error: Failed to fetch FCM token:', err);
-                return res.status(500).json({ error: 'Failed to fetch FCM token.' });
+                console.error('Database Error: Failed to fetch FCM tokens:', err);
+                return res.status(500).json({ error: 'Failed to fetch FCM tokens.' });
             }
 
             if (reportRows.length === 0) {
-                console.error('No FCM token found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
+                console.error('No FCM tokens found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'No FCM tokens found for the provided Plate number.' });
             }
 
-            const fcm_token = reportRows[0].fcm_token;
+            const fcmTokens = reportRows.map(row => row.fcm_token);  // Collect all tokens
 
-            if (!fcm_token) {
-                console.error('FCM token not found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'FCM token not found.' });
+            if (!fcmTokens.length) {
+                console.error('No FCM tokens found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'No FCM tokens found.' });
             }
 
-            // Step 2: Send notification using Firebase with fcm_token
+            // Step 2: Get current server time and date
+            const currentDateTime = new Date();  // Get current server time
+
+            // Format the date and time (Optional: you can format it as needed)
+            const formattedDate = currentDateTime.toLocaleDateString();
+            const formattedTime = currentDateTime.toLocaleTimeString();
+
+            // Step 3: Create a custom notification body with plate number and attendance status
+            const notificationBody = `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`;
+
+            // Step 4: Send notification using Firebase to all fcm_tokens
             const message = {
                 notification: {
                     title: 'Seminar Attendance',
-                    body: attended ? 'Driver attended the seminar' : 'Driver did not attend the seminar',
+                    body: notificationBody,  // Custom message body
                 },
-                token: fcm_token,
+                tokens: fcmTokens,  // Send notification to multiple tokens
                 data: {
-                    plateNumber: plateNumber, // Send the plate number as part of the data
+                    plateNumber: plateNumber,  // Send the plate number as part of the data
                     attended: String(attended),  // Send attendance status
+                    date: formattedDate,  // Send the server date
+                    time: formattedTime   // Send the server time
                 },
             };
 
-            admin.messaging().send(message)
+            admin.messaging().sendMulticast(message)  // Use sendMulticast to send to multiple devices
                 .then((response) => {
-                    console.log('Notification sent successfully for Plate number:', plateNumber);
+                    console.log('Notification sent successfully for Plate number:', plateNumber, 'Response:', response);
                     res.status(200).json({ 
                         success: true, 
-                        msg: 'Notification sent successfully.' 
+                        msg: 'Notification sent successfully.',
+                        responses: response.responses,  // Return response details for each message
                     });
                 })
                 .catch((error) => {
