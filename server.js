@@ -704,7 +704,7 @@ app.post('/api/notify-attendance', (req, res) => {
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch fcm_token from reportlist using the plate number
+    // Step 1: Fetch all fcm_tokens from reportlist using the plate number
     connect.query(
         `SELECT fcm_token 
          FROM reportlist 
@@ -712,54 +712,62 @@ app.post('/api/notify-attendance', (req, res) => {
         [plateNumber], 
         (err, reportRows) => {
             if (err) {
-                console.error('Database Error: Failed to fetch FCM token:', err);
-                return res.status(500).json({ error: 'Failed to fetch FCM token.' });
+                console.error('Database Error: Failed to fetch FCM tokens:', err);
+                return res.status(500).json({ error: 'Failed to fetch FCM tokens.' });
             }
 
             if (reportRows.length === 0) {
-                console.error('No FCM token found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'No FCM token found for the provided Plate number.' });
+                console.error('No FCM tokens found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'No FCM tokens found for the provided Plate number.' });
             }
 
-            const fcm_token = reportRows[0].fcm_token;
+            // Extract all FCM tokens
+            const fcmTokens = reportRows.map(row => row.fcm_token).filter(token => token);
 
-            if (!fcm_token) {
-                console.error('FCM token not found for Plate number:', plateNumber);
-                return res.status(404).json({ error: 'FCM token not found.' });
+            if (fcmTokens.length === 0) {
+                console.error('No valid FCM tokens found for Plate number:', plateNumber);
+                return res.status(404).json({ error: 'No valid FCM tokens found.' });
             }
 
             // Step 2: Get current server time and date
-            const currentDateTime = new Date();  // Get current server time
-            const formattedDate = currentDateTime.toLocaleDateString();  // Format date (e.g., MM/DD/YYYY)
-            const formattedTime = currentDateTime.toLocaleTimeString();  // Format time (e.g., HH:MM:SS AM/PM)
+            const currentDateTime = new Date();
+            const formattedDate = currentDateTime.toLocaleDateString();
+            const formattedTime = currentDateTime.toLocaleTimeString();
 
             // Step 3: Create the notification message
             const message = {
                 notification: {
                     title: 'Seminar Attendance',
-                    body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} at the seminar.`,
+                    body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} the seminar.`,
                 },
-                token: fcm_token,
                 data: {
-                    plateNumber: plateNumber,  // Send the plate number as part of the data
-                    attended: String(attended),  // Send attendance status
-                    serverDate: formattedDate,  // Send the server date
-                    serverTime: formattedTime   // Send the server time
-                },
+                    plateNumber: plateNumber,
+                    attended: String(attended),
+                    serverDate: formattedDate,
+                    serverTime: formattedTime,
+                }
             };
 
-            // Step 4: Send notification using Firebase with fcm_token
-            admin.messaging().send(message)
-                .then((response) => {
-                    console.log('Notification sent successfully for Plate number:', plateNumber);
-                    res.status(200).json({ 
-                        success: true, 
-                        msg: 'Notification sent successfully.' 
+            // Step 4: Send notifications to all FCM tokens using Promise.all
+            const notificationPromises = fcmTokens.map(token => {
+                return admin.messaging().send({
+                    ...message,
+                    token: token, // Send notification to each token
+                });
+            });
+
+            // Execute all promises
+            Promise.all(notificationPromises)
+                .then((responses) => {
+                    console.log('Notifications sent successfully for Plate number:', plateNumber);
+                    res.status(200).json({
+                        success: true,
+                        msg: 'Notifications sent successfully to all devices.',
                     });
                 })
                 .catch((error) => {
-                    console.error('Error sending notification:', error);
-                    res.status(500).json({ error: 'Failed to send notification.' });
+                    console.error('Error sending notifications:', error);
+                    res.status(500).json({ error: 'Failed to send notifications.' });
                 });
         }
     );
