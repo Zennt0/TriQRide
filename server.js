@@ -729,10 +729,9 @@ app.post('/api/notify-attendance', (req, res) => {
                 return res.status(404).json({ error: 'No valid FCM tokens found.' });
             }
 
-            // Step 2: Get current server time and date
-            const currentDateTime = new Date();
-            const formattedDate = currentDateTime.toLocaleDateString();
-            const formattedTime = currentDateTime.toLocaleTimeString();
+            // Step 2: Get current server time and date (adjusted for Philippine Time Zone)
+            const currentDateTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
+            const [formattedDate, formattedTime] = currentDateTime.split(', ');
 
             // Step 3: Create the notification message
             const message = {
@@ -743,8 +742,8 @@ app.post('/api/notify-attendance', (req, res) => {
                 data: {
                     plateNumber: plateNumber,
                     attended: String(attended),
-                    serverDate: formattedDate,
-                    serverTime: formattedTime,
+                    serverDate: formattedDate,  // Send the server date
+                    serverTime: formattedTime,  // Send the server time in PHT
                 }
             };
 
