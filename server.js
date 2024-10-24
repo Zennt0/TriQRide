@@ -609,7 +609,7 @@ app.post('/api/report/:id', async (req, res) => {
             // Prepare notification payload with PH time
             const notificationPayload = {
                 id: driverId,  // Use driverId for tracking
-                title: "Report Notice",
+                title: "Report Notice:",
                 body: `Report Submitted To Municipal Office. \nFranchise Number: ${plate}`,
                 serverTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour12: false }),
                 serverDate: new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }),
@@ -721,7 +721,7 @@ app.post('/api/notify-attendance', (req, res) => {
             // Step 3: Create the notification message
             const message = {
                 notification: {
-                    title: 'Seminar Attendance',
+                    title: 'Seminar Attendance:',
                     body: `${plateNumber} ${attended ? 'Attended' : 'Did not attend'} the seminar.`,
                 },
                 data: {
