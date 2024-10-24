@@ -575,8 +575,8 @@ app.post('/api/report/:id', async (req, res) => {
 
         const driverId = rows[0].id; // Fetch driver ID
 
-        // Set the current datetime for the report
-        const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        // Get current datetime in the Philippine timezone (Asia/Manila)
+        const reportDateTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila', hour12: false }).replace(',', '');
 
         // Insert a new report entry in the `reportlist` table
         const insertQuery = `
@@ -602,13 +602,13 @@ app.post('/api/report/:id', async (req, res) => {
                 report_datetime: reportDateTime
             });
 
-            // Prepare notification payload
+            // Prepare notification payload with PH time
             const notificationPayload = {
                 id: driverId,  // Use driverId for tracking
                 title: "Report Notice",
                 body: `Report Submitted To Municipal Office Franchise Number: ${plate}`,
-                serverTime: new Date().toLocaleTimeString(),
-                serverDate: new Date().toLocaleDateString(),
+                serverTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour12: false }),
+                serverDate: new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }),
                 fcm_token: fcm_token  // Use the fcm_token from the report
             };
 
@@ -655,8 +655,8 @@ app.post('/sendnotification', (req, res) => {
         },
         token: fcm_token,  // Use the fcm_token from the report, not from the database
         data: {
-            serverTime: serverTime,
-            serverDate: serverDate,
+            serverTime: serverTime,  // Philippine Time passed from the report submission
+            serverDate: serverDate,  // Philippine Date passed from the report submission
         },
     };
 
