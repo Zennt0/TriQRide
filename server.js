@@ -610,7 +610,7 @@ app.post('/api/report/:id', async (req, res) => {
             const notificationPayload = {
                 id: driverId,  // Use driverId for tracking
                 title: "Report Notice",
-                body: `Report Submitted To Municipal Office Franchise Number: ${plate}`,
+                body: `Report Submitted To Municipal Office. \nFranchise Number: ${plate}`,
                 serverTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour12: false }),
                 serverDate: new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }),
                 fcm_token: fcm_token  // Use the fcm_token from the report
