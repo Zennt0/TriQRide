@@ -345,7 +345,7 @@ app.get('/api/driver/:plateNumber', (req, res) => {
 
 
 app.get('/api/reports', (req, res) => {
-    const searchTerm = req.query.search;  // Get the search query parameter
+    const searchTerm = req.query.search;  
     const selectedMonth = req.query.month; // Get the selected month query parameter
 
     let query = 'SELECT * FROM reportlist';  // SQL query starts here
