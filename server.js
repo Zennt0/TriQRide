@@ -314,9 +314,9 @@ app.get('/api/drivers', (req, res) => {
 app.get('/api/driver/:plateNumber', (req, res) => {
     const plateNumber = req.params.plateNumber;
 
-    const query = `
+  const query = `
         SELECT dl.*, 
-        COALESCE(AVG(rl.ratings), 0) AS averageRating,  -- Calculate average rating
+        CASE WHEN COUNT(rl.ratings) > 0 THEN AVG(rl.ratings) ELSE NULL END AS averageRating,  -- Only calculate AVG if ratings exist
         GROUP_CONCAT(CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s')) SEPARATOR ', ') AS ViolationHistory,  -- Concatenate violations with date and time
         COUNT(rl.Violations) AS totalViolations  -- Count the total number of violations
         FROM driverlist dl
