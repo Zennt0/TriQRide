@@ -225,11 +225,12 @@ app.get('/api/list/:id', (req, res) => {
         if (driverRows.length > 0) {
             const driver = driverRows[0]; // Get the driver record
 
-            // Now, fetch violations and ratings from reportlist based on Plate_number
+            // Now, fetch violations, ratings, and rating count from reportlist based on Plate_number
             const reportQuery = `
                 SELECT 
                     COUNT(Violations) AS totalViolations, 
-                    AVG(ratings) AS overallRating 
+                    AVG(ratings) AS overallRating,
+                    COUNT(ratings) AS ratingCount
                 FROM reportlist 
                 WHERE Plate_number = ?
             `;
@@ -247,7 +248,8 @@ app.get('/api/list/:id', (req, res) => {
                 const responseData = {
                     ...driver,
                     totalViolations: reportRows[0].totalViolations || 0, // Count of violations
-                    overallRating: overallRating                        // Formatted rating
+                    overallRating: overallRating,                       // Formatted rating
+                    ratingCount: reportRows[0].ratingCount || 0         // Count of ratings
                 };
 
                 console.log('Fetched driver and report data successfully:', responseData);
