@@ -93,7 +93,7 @@ app.post('/register', async (req, res) => {
 
     connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
         if (err) {
-            console.error('Database query error:', err); // Log the error
+            console.error('Database query error:', err); 
             return res.status(500).json({ message: 'Database query error' });
         }
 
