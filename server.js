@@ -557,9 +557,9 @@ app.post('/api/token', (req, res) => {
 app.post('/api/report/:id', async (req, res) => {
     const { plate, driver, report, fcm_token, ratings } = req.body;
 
-    // Validate the input
-    if (!plate || !driver || !report || !fcm_token || !ratings) {
-        return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
+    // Validate the input: Make report optional but require plate, driver, FCM token, and ratings
+    if (!plate || !driver || !fcm_token || !ratings) {
+        return res.status(400).json({ error: 'Plate, driver name, FCM token, and ratings are required.' });
     }
 
     // Check if driver exists in `driverlist`
@@ -582,12 +582,13 @@ app.post('/api/report/:id', async (req, res) => {
             .slice(0, 19)
             .replace('T', ' ');  // Format to 'YYYY-MM-DD HH:MM:SS'
 
-        // Insert a new report entry in the `reportlist` table
+        // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
             INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
             VALUES (?, ?, ?, ?, ?, ?)
         `;
-        const insertValues = [plate, driver, report.trim(), fcm_token, ratings, reportDateTime];
+        const violations = report ? report.trim() : '';  // Use empty string if no report is provided
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime];
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
@@ -601,7 +602,7 @@ app.post('/api/report/:id', async (req, res) => {
                 reportId: result.insertId,
                 plate,
                 driver,
-                violations: report.trim(),
+                violations,  // Violations may be empty if no report
                 ratings,
                 report_datetime: reportDateTime
             });
