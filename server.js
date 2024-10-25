@@ -316,9 +316,10 @@ app.get('/api/driver/:plateNumber', (req, res) => {
 
   const query = `
         SELECT dl.*, 
-        CASE WHEN COUNT(rl.ratings) > 0 THEN AVG(rl.ratings) ELSE NULL END AS averageRating,  -- Only calculate AVG if ratings exist
-        GROUP_CONCAT(CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s')) SEPARATOR ', ') AS ViolationHistory,  -- Concatenate violations with date and time
-        COUNT(rl.Violations) AS totalViolations  -- Count the total number of violations
+        CASE WHEN COUNT(rl.ratings) > 0 THEN AVG(rl.ratings) ELSE NULL END AS averageRating,  -- Average rating if available
+        COUNT(rl.ratings) AS ratingCount,  -- Count of ratings
+        GROUP_CONCAT(CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s')) SEPARATOR ', ') AS ViolationHistory,
+        COUNT(rl.Violations) AS totalViolations  -- Count of violations
         FROM driverlist dl
         LEFT JOIN reportlist rl ON dl.Plate_number = rl.Plate_number
         WHERE dl.Plate_number = ?
