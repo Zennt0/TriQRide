@@ -215,7 +215,7 @@ app.get('/api/list/:id', (req, res) => {
 
     // First, fetch driver details from driverlist
     const driverQuery = 'SELECT * FROM driverlist WHERE id = ?';
-    
+
     connect.query(driverQuery, [id], (err, driverRows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
@@ -225,10 +225,10 @@ app.get('/api/list/:id', (req, res) => {
         if (driverRows.length > 0) {
             const driver = driverRows[0]; // Get the driver record
 
-            // Now, fetch violations, ratings, and rating count from reportlist based on Plate_number
+            // Fetch violations, ratings, and rating count from reportlist based on Plate_number
             const reportQuery = `
                 SELECT 
-                    COUNT(Violations) AS totalViolations, 
+                    COUNT(CASE WHEN Violations IS NOT NULL AND Violations <> '' THEN 1 END) AS totalViolations, 
                     AVG(ratings) AS overallRating,
                     COUNT(ratings) AS ratingCount
                 FROM reportlist 
