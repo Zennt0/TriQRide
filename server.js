@@ -761,6 +761,24 @@ app.post('/api/notify-attendance', (req, res) => {
     );
 });
 
+app.post('/api/reset-violations', (req, res) => {
+    const { plateNumber } = req.body;
+
+    // Insert attendance record to mark the driver as having attended
+    const attendanceQuery = `
+        INSERT INTO seminar_attendance (Plate_number) VALUES (?);
+    `;
+
+    connect.query(attendanceQuery, [plateNumber], (err, result) => {
+        if (err) {
+            console.error('Error recording attendance:', err);
+            return res.status(500).json({ error: 'Failed to record attendance.' });
+        }
+
+        res.json({ success: true, message: 'Attendance recorded.' });
+    });
+});
+
 
 // Start the server 
 app.listen(PORT, () => {
