@@ -284,7 +284,7 @@ app.get('/api/list/:id/image', (req, res) => {
             'Content-Length': rows[0].image.length,
         });
         console.log('Sending image for ID:', id);
-        res.end(rows[0].image); // Send the binary image data
+        res.end(rows[0].image);
     });
 });
 
