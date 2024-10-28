@@ -390,13 +390,15 @@ app.get('/api/seminar', (req, res) => {
 
     // Base query to fetch drivers with 3 or more violations
     let query = `
-         SELECT 
-             Driver_name, 
-             Plate_number, 
-             COUNT(Violations) AS total_violations
-        FROM reportlist
-        GROUP BY Driver_name, Plate_number
-        HAVING COUNT(Violations) >= 3
+    SELECT 
+        r.Driver_name, 
+        r.Plate_number, 
+        COUNT(*) AS total_violations
+    FROM reportlist r
+    LEFT JOIN seminar_attendance sa ON r.Plate_number = sa.Plate_number
+    WHERE sa.Plate_number IS NULL  -- Exclude drivers who attended a seminar
+    GROUP BY r.Driver_name, r.Plate_number
+    HAVING COUNT(*) >= 3;
     `;
 
     // If a search term is provided, modify the query to search for matching Plate_number or Driver_name
