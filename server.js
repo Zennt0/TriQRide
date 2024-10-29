@@ -781,18 +781,18 @@ app.post('/api/reset-violations', (req, res) => {
             return res.status(500).json({ error: 'Failed to record attendance.' });
         }
 
-        // Optional: Reset violations for the driver in reportlist
+        // Update violations for the driver in reportlist to mark them as "resolved" instead of deleting
         const resetViolationsQuery = `
-            DELETE FROM reportlist WHERE Plate_number = ?;
+            UPDATE reportlist SET status = 'resolved' WHERE Plate_number = ?;
         `;
 
         connect.query(resetViolationsQuery, [plateNumber], (err, result) => {
             if (err) {
-                console.error('Error resetting violations:', err);
-                return res.status(500).json({ error: 'Failed to reset violations.' });
+                console.error('Error updating violations status:', err);
+                return res.status(500).json({ error: 'Failed to update violations status.' });
             }
 
-            res.json({ success: true, message: 'Attendance recorded and violations reset.' });
+            res.json({ success: true, message: 'Attendance recorded and violations marked as resolved.' });
         });
     });
 });
