@@ -796,6 +796,9 @@ app.post('/api/reset-violations', (req, res) => {
     });
 });
 
+app.get('/api/server-time', (req, res) => {
+  res.json({ serverTime: Date.now() }); 
+});
 
 // Start the server 
 app.listen(PORT, () => {
