@@ -770,7 +770,7 @@ app.post('/api/notify-attendance', (req, res) => {
 app.post('/api/reset-violations', (req, res) => {
     const { plateNumber } = req.body;
 
-    // Insert attendance record to mark the driver as having attended
+    // Insert attendance record
     const attendanceQuery = `
         INSERT INTO seminar_attendance (Plate_number) VALUES (?);
     `;
@@ -781,7 +781,19 @@ app.post('/api/reset-violations', (req, res) => {
             return res.status(500).json({ error: 'Failed to record attendance.' });
         }
 
-        res.json({ success: true, message: 'Attendance recorded.' });
+        // Optional: Reset violations for the driver in reportlist
+        const resetViolationsQuery = `
+            DELETE FROM reportlist WHERE Plate_number = ?;
+        `;
+
+        connect.query(resetViolationsQuery, [plateNumber], (err, result) => {
+            if (err) {
+                console.error('Error resetting violations:', err);
+                return res.status(500).json({ error: 'Failed to reset violations.' });
+            }
+
+            res.json({ success: true, message: 'Attendance recorded and violations reset.' });
+        });
     });
 });
 
