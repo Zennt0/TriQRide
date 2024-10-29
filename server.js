@@ -388,7 +388,7 @@ app.get('/api/reports', (req, res) => {
 app.get('/api/seminar', (req, res) => {
     const searchTerm = req.query.search; // Get the search query parameter
 
-    // Base query to fetch drivers with 3 or more violations
+    // Base query to fetch drivers with 3 or more unresolved (active) violations
     let query = `
         SELECT 
             r.Driver_name, 
@@ -401,13 +401,14 @@ app.get('/api/seminar', (req, res) => {
             GROUP BY Plate_number
         ) sa ON r.Plate_number = sa.Plate_number
         WHERE (sa.last_attended_at IS NULL OR r.report_datetime > sa.last_attended_at)
+        AND r.status = 'active'
         GROUP BY r.Driver_name, r.Plate_number
         HAVING COUNT(*) >= 3;
     `;
 
     // If a search term is provided, modify the query to search for matching Plate_number or Driver_name
     if (searchTerm) {
-        query += ` AND (Plate_number LIKE ? OR Driver_name LIKE ?)`; // Search both plate number and driver name
+        query += ` AND (r.Plate_number LIKE ? OR r.Driver_name LIKE ?)`;
     }
 
     // Execute the query, using placeholders for the search term if provided
@@ -415,11 +416,9 @@ app.get('/api/seminar', (req, res) => {
         if (err) {
             console.error('Error fetching seminar data:', err);
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
-            console.log('Seminar data fetched from DB:', rows);  // Log the response from DB
-             res.json(rows);
         }
 
-        res.json(results); 
+        res.json(results);
     });
 });
 
