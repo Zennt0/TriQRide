@@ -204,7 +204,7 @@ app.get('/api/list', (req, res) => {
             return res.status(500).json({ error: 'Failed to fetch data' });
         }
         console.log('Fetched data successfully:', rows);
-        res.json(rows); // This will now include image paths
+        res.json(rows); 
     });
 });
 
