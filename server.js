@@ -803,21 +803,27 @@ app.post('/api/reset-violations', (req, res) => {
 });
 
 app.post('/api/resolve-report', (req, res) => {
-    const { reportId } = req.body;
+    const { plateNumber } = req.body;
 
     const resolveQuery = `
         UPDATE reportlist 
         SET status = 'resolved', token_status = 'disabled' 
-        WHERE id = ?;
+        WHERE Plate_number = ?;
     `;
 
-    connect.query(resolveQuery, [reportId], (err, result) => {
+    connect.query(resolveQuery, [plateNumber], (err, result) => {
         if (err) {
             console.error('Error resolving report:', err);
             return res.status(500).json({ error: 'Failed to resolve report.' });
         }
-
-        res.json({ success: true, message: 'Report resolved successfully.' });
+        
+        if (result.affectedRows > 0) {
+            console.log(`Report for plate ${plateNumber} resolved and token disabled successfully.`);
+            res.json({ success: true, message: 'Report resolved successfully.' });
+        } else {
+            console.warn(`No report found for plate number: ${plateNumber}`);
+            res.status(404).json({ error: 'No report found for the provided plate number.' });
+        }
     });
 });
 
