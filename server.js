@@ -403,7 +403,7 @@ app.get('/api/seminar', (req, res) => {
         WHERE (sa.last_attended_at IS NULL OR r.report_datetime > sa.last_attended_at)
         AND r.status = 'active'
         GROUP BY r.Driver_name, r.Plate_number
-        HAVING COUNT(DISTINCT r.violation_id) >= 3;
+        HAVING COUNT(*) >= 3;
     `;
 
     // If a search term is provided, modify the query to search for matching Plate_number or Driver_name
