@@ -802,6 +802,25 @@ app.post('/api/reset-violations', (req, res) => {
     });
 });
 
+app.post('/api/resolve-report', (req, res) => {
+    const { reportId } = req.body;
+
+    const resolveQuery = `
+        UPDATE reportlist 
+        SET status = 'resolved', token_status = 'disabled' 
+        WHERE id = ?;
+    `;
+
+    connect.query(resolveQuery, [reportId], (err, result) => {
+        if (err) {
+            console.error('Error resolving report:', err);
+            return res.status(500).json({ error: 'Failed to resolve report.' });
+        }
+
+        res.json({ success: true, message: 'Report resolved successfully.' });
+    });
+});
+
 app.get('/api/server-time', (req, res) => {
   res.json({ serverTime: Date.now() }); 
 });
