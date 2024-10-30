@@ -388,7 +388,7 @@ app.get('/api/reports', (req, res) => {
 app.get('/api/seminar', (req, res) => {
     const searchTerm = req.query.search; // Get the search query parameter
 
-    // Base query to fetch drivers with 3 or more unresolved (active) violations
+    // Base query to fetch drivers with exactly 3 or more active violations only
     let query = `
         SELECT 
             r.Driver_name, 
@@ -405,7 +405,6 @@ app.get('/api/seminar', (req, res) => {
         GROUP BY r.Driver_name, r.Plate_number
         HAVING total_violations >= 3; -- Only drivers with 3+ violations
     `;
-    
 
     // If a search term is provided, modify the query to search for matching Plate_number or Driver_name
     if (searchTerm) {
@@ -418,8 +417,9 @@ app.get('/api/seminar', (req, res) => {
             console.error('Error fetching seminar data:', err);
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
         }
-        
-         results.forEach(driver => {
+
+        // Debugging (optional): log the results to verify counts
+        results.forEach(driver => {
             console.log(`Driver: ${driver.Driver_name}, Plate: ${driver.Plate_number}, Violations: ${driver.total_violations}`);
         });
 
