@@ -393,7 +393,7 @@ app.get('/api/seminar', (req, res) => {
         SELECT 
             r.Driver_name, 
             r.Plate_number, 
-            COUNT(DISTINCT r.violation_id) AS total_violations
+            COUNT(*) AS total_violations
         FROM reportlist r
         LEFT JOIN (
             SELECT Plate_number, MAX(attended_at) AS last_attended_at 
@@ -401,9 +401,9 @@ app.get('/api/seminar', (req, res) => {
             GROUP BY Plate_number
         ) sa ON r.Plate_number = sa.Plate_number
         WHERE (sa.last_attended_at IS NULL OR r.report_datetime > sa.last_attended_at)
-        AND r.status = 'active'  -- Count only active violations
+        AND r.status = 'active'
         GROUP BY r.Driver_name, r.Plate_number
-        HAVING total_violations >= 3; -- Only drivers with 3+ violations
+        HAVING COUNT(*) >= 3;
     `;
 
     // If a search term is provided, modify the query to search for matching Plate_number or Driver_name
