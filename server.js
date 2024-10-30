@@ -741,7 +741,7 @@ app.post('/api/notify-attendance', (req, res) => {
                 data: {
                     plateNumber: plateNumber,
                     attended: String(attended),
-                    serverDate: formattedDate,  // Send the server date
+                    serverDate: formattedDate,  
                     serverTime: formattedTime,  // Send the server time in PHT
                 }
             };
