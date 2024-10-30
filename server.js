@@ -393,7 +393,7 @@ app.get('/api/seminar', (req, res) => {
         SELECT 
             r.Driver_name, 
             r.Plate_number, 
-            COUNT(DISTINCT r.violation_id) AS total_violations
+            COUNT(*) AS total_violations
         FROM reportlist r
         LEFT JOIN (
             SELECT Plate_number, MAX(attended_at) AS last_attended_at 
