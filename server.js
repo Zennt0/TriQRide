@@ -786,9 +786,11 @@ app.post('/api/reset-violations', (req, res) => {
             return res.status(500).json({ error: 'Failed to record attendance.' });
         }
 
-        // Update violations for the driver in reportlist to mark them as "resolved" instead of deleting
+        // Update violations for the driver in reportlist to mark them as "resolved" and set token_status to "disabled"
         const resetViolationsQuery = `
-            UPDATE reportlist SET status = 'resolved' WHERE Plate_number = ?;
+            UPDATE reportlist 
+            SET status = 'resolved', token_status = 'disabled' 
+            WHERE Plate_number = ?;
         `;
 
         connect.query(resetViolationsQuery, [plateNumber], (err, result) => {
@@ -797,33 +799,8 @@ app.post('/api/reset-violations', (req, res) => {
                 return res.status(500).json({ error: 'Failed to update violations status.' });
             }
 
-            res.json({ success: true, message: 'Attendance recorded and violations marked as resolved.' });
+            res.json({ success: true, message: 'Attendance recorded and violations marked as resolved with token disabled.' });
         });
-    });
-});
-
-app.post('/api/resolve-report', (req, res) => {
-    const { plateNumber } = req.body;
-
-    const resolveQuery = `
-        UPDATE reportlist 
-        SET status = 'resolved', token_status = 'disabled' 
-        WHERE Plate_number = ?;
-    `;
-
-    connect.query(resolveQuery, [plateNumber], (err, result) => {
-        if (err) {
-            console.error('Error resolving report:', err);
-            return res.status(500).json({ error: 'Failed to resolve report.' });
-        }
-        
-        if (result.affectedRows > 0) {
-            console.log(`Report for plate ${plateNumber} resolved and token disabled successfully.`);
-            res.json({ success: true, message: 'Report resolved successfully.' });
-        } else {
-            console.warn(`No report found for plate number: ${plateNumber}`);
-            res.status(404).json({ error: 'No report found for the provided plate number.' });
-        }
     });
 });
 
