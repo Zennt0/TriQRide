@@ -405,6 +405,7 @@ app.get('/api/seminar', (req, res) => {
         GROUP BY r.Driver_name, r.Plate_number
         HAVING COUNT(*) >= 3;
     `;
+    
 
     // If a search term is provided, modify the query to search for matching Plate_number or Driver_name
     if (searchTerm) {
@@ -417,6 +418,10 @@ app.get('/api/seminar', (req, res) => {
             console.error('Error fetching seminar data:', err);
             return res.status(500).json({ error: 'Failed to fetch seminar data.' });
         }
+        
+         results.forEach(driver => {
+            console.log(`Driver: ${driver.Driver_name}, Plate: ${driver.Plate_number}, Violations: ${driver.total_violations}`);
+        });
 
         res.json(results);
     });
