@@ -788,10 +788,15 @@ app.post('/api/reset-violations', (req, res) => {
 
         // Update violations for the driver in reportlist to mark them as "resolved" and set token_status to "disabled"
         const resetViolationsQuery = `
-            UPDATE reportlist 
-            SET status = 'resolved', token_status = 'disabled' 
-            WHERE Plate_number = ?;
-        `;
+                UPDATE reportlist 
+                SET 
+                    status = 'resolved',
+                    token_status = 'disabled',
+                    fcm_token = NULL
+                WHERE 
+                    Plate_number = ? 
+                    AND status = 'active';
+            `;
 
         connect.query(resetViolationsQuery, [plateNumber], (err, result) => {
             if (err) {
