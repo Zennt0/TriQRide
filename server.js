@@ -313,30 +313,40 @@ app.get('/api/drivers', (req, res) => {
 // Fetch driver details along with their report data
 app.get('/api/driver/:plateNumber', (req, res) => {
     const plateNumber = req.params.plateNumber;
-
-  const query = `
+    
+    // Get the current month and year for filtering
+    const currentMonth = new Date().getMonth() + 1; // Months are zero-based in JavaScript
+    const currentYear = new Date().getFullYear();
+    
+    const query = `
         SELECT dl.*, 
-        CASE WHEN COUNT(rl.ratings) > 0 THEN AVG(rl.ratings) ELSE NULL END AS averageRating,  -- Average rating if available
-        COUNT(rl.ratings) AS ratingCount,  -- Count of ratings
-        GROUP_CONCAT(CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s')) SEPARATOR ', ') AS ViolationHistory,
-        COUNT(rl.Violations) AS totalViolations  -- Count of violations
+            CASE WHEN COUNT(rl.ratings) > 0 THEN AVG(rl.ratings) ELSE NULL END AS averageRating,
+            COUNT(rl.ratings) AS ratingCount,
+            -- Filter to include only violations from the current month and year in the profile modal
+            GROUP_CONCAT(
+                CASE 
+                    WHEN MONTH(rl.report_datetime) = ? AND YEAR(rl.report_datetime) = ? 
+                    THEN CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s')) 
+                    ELSE NULL 
+                END SEPARATOR ', '
+            ) AS ViolationHistory,
+            COUNT(CASE WHEN MONTH(rl.report_datetime) = ? AND YEAR(rl.report_datetime) = ? THEN rl.Violations END) AS totalViolations
         FROM driverlist dl
         LEFT JOIN reportlist rl ON dl.Plate_number = rl.Plate_number
         WHERE dl.Plate_number = ?
         GROUP BY dl.Plate_number;
     `;
-
-    connect.query(query, [plateNumber], (err, results) => {
+    
+    connect.query(query, [currentMonth, currentYear, currentMonth, currentYear, plateNumber], (err, results) => {
         if (err) {
             console.error('Error fetching driver report details:', err);
             return res.status(500).json({ error: 'Failed to fetch report details.' });
         }
 
-        // Send the first result (driver data) back as a response, assuming one driver per plate number
         if (results.length > 0) {
             res.json({
                 success: true,
-                data: results[0] // Send the first result (driver data) back
+                data: results[0]
             });
         } else {
             res.status(404).json({ error: 'Driver not found' });
