@@ -708,16 +708,17 @@ app.post('/sendnotification', (req, res) => {
 
 app.post('/api/notify-attendance', (req, res) => {
     const { plateNumber, attended } = req.body;
+    console.log('POST /api/notify-attendance - Request received:', { 
+        plateNumber, 
+        attended,
+        iconType: attended ? 'attendance_icon' : 'absence_icon'  // Added this to check icon value
+    });
 
-    console.log('POST /api/notify-attendance - Request received', { plateNumber, attended });
-
-    // Validate the plateNumber
     if (!plateNumber || plateNumber === 'N/A') {
         console.error('Invalid or missing plate number');
         return res.status(400).json({ error: 'Invalid or missing plate number.' });
     }
 
-    // Step 1: Fetch all fcm_tokens from reportlist using the plate number
     connect.query(
         `SELECT fcm_token 
          FROM reportlist 
@@ -734,7 +735,6 @@ app.post('/api/notify-attendance', (req, res) => {
                 return res.status(404).json({ error: 'No FCM tokens found for the provided Plate number.' });
             }
 
-            // Extract all FCM tokens
             const fcmTokens = reportRows.map(row => row.fcm_token).filter(token => token);
 
             if (fcmTokens.length === 0) {
@@ -742,11 +742,9 @@ app.post('/api/notify-attendance', (req, res) => {
                 return res.status(404).json({ error: 'No valid FCM tokens found.' });
             }
 
-            // Step 2: Get current server time and date (adjusted for Philippine Time Zone)
             const currentDateTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' });
             const [formattedDate, formattedTime] = currentDateTime.split(', ');
 
-            // Step 3: Create the notification message
             const message = {
                 notification: {
                     title: 'Seminar Attendance:',
@@ -755,23 +753,24 @@ app.post('/api/notify-attendance', (req, res) => {
                 data: {
                     plateNumber: plateNumber,
                     attended: String(attended),
-                    serverDate: formattedDate,  
-                    serverTime: formattedTime,  // Send the server time in PHT
+                    icon: attended ? 'attendance_icon' : 'absence_icon',
+                    serverDate: formattedDate,
+                    serverTime: formattedTime,
                 }
             };
 
-            // Step 4: Send notifications to all FCM tokens using Promise.all
+            console.log('Message being sent:', message);  // Added this to check final message
+
             const notificationPromises = fcmTokens.map(token => {
                 return admin.messaging().send({
                     ...message,
-                    token: token, // Send notification to each token
+                    token: token,
                 });
             });
 
-            // Execute all promises
             Promise.all(notificationPromises)
                 .then((responses) => {
-                    console.log('Notifications sent successfully for Plate number:', plateNumber);
+                    console.log('Notifications sent successfully for Plate number:', plateNumber, 'with icon:', message.data.icon);
                     res.status(200).json({
                         success: true,
                         msg: 'Notifications sent successfully to all devices.',
