@@ -326,7 +326,7 @@ app.get('/api/driver/:plateNumber', (req, res) => {
             GROUP_CONCAT(
                 CASE 
                     WHEN MONTH(rl.report_datetime) = ? AND YEAR(rl.report_datetime) = ? 
-                    THEN CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s')) 
+                    THEN CONCAT(rl.Violations, ' - ', DATE_FORMAT(rl.report_datetime, '%Y-%m-%d %H:%i:%s'), ' - ', rl.reporter_name)  
                     ELSE NULL 
                 END SEPARATOR ', '
             ) AS ViolationHistory,
@@ -342,7 +342,6 @@ app.get('/api/driver/:plateNumber', (req, res) => {
             console.error('Error fetching driver report details:', err);
             return res.status(500).json({ error: 'Failed to fetch report details.' });
         }
-
         if (results.length > 0) {
             res.json({
                 success: true,
