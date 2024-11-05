@@ -289,7 +289,7 @@ app.get('/api/list/:id/image', (req, res) => {
 });
 
 app.get('/api/drivers', (req, res) => {
-    const searchTerm = req.query.search; // Get the search query parameter
+    const searchTerm = req.query.search;
 
     // Base query to fetch all drivers
     let query = `SELECT * FROM driverlist`;
