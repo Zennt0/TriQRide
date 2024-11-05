@@ -353,6 +353,25 @@ app.get('/api/driver/:plateNumber', (req, res) => {
     });
 });
 
+app.put('/api/driver/:plateNumber', (req, res) => {
+    const plateNumber = req.params.plateNumber;
+    const { owner, franchise, barangay, image } = req.body;
+
+    const query = `
+        UPDATE driverlist
+        SET Driver_name = ?, Plate_number = ?, Barangay = ?, Image = ?
+        WHERE Plate_number = ?
+    `;
+
+    connect.query(query, [owner, franchise, barangay, image, plateNumber], (err, results) => {
+        if (err) {
+            console.error('Error updating driver profile:', err);
+            return res.status(500).json({ error: 'Failed to update driver profile.' });
+        }
+        res.json({ success: true, message: 'Driver profile updated successfully.' });
+    });
+});
+
 
 app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;
