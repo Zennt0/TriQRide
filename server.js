@@ -98,7 +98,7 @@ app.post('/register', async (req, res) => {
         }
 
         if (result.length > 0) {
-            console.warn('Username already exists:', username); // Log warning for existing username
+            console.warn('Username already exists:', username); 
             return res.status(400).json({ message: 'Username already exists' });
         }
 
