@@ -711,7 +711,7 @@ app.post('/api/notify-attendance', (req, res) => {
     console.log('POST /api/notify-attendance - Request received:', { 
         plateNumber, 
         attended,
-        iconType: attended ? 'attendance_icon' : 'absence_icon'  // Added this to check icon value
+        iconType: attended ? 'attendance_icon' : 'absence_icon'  
     });
 
     if (!plateNumber || plateNumber === 'N/A') {
