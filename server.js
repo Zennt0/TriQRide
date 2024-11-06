@@ -354,20 +354,28 @@ app.get('/api/driver/:plateNumber', (req, res) => {
 });
 
 app.put('/api/driver/update', (req, res) => {
-    const plateNumber = req.params.plateNumber;
-    const { owner, franchise, barangay, image } = req.body;
+    const { id, Driver_name, Plate_number, Barangay } = req.body;
+
+    if (!id) {
+        return res.status(400).json({ error: 'Driver ID is required.' });
+    }
 
     const query = `
         UPDATE driverlist
-        SET Driver_name = ?, Plate_number = ?, Barangay = ?, Image = ?
-        WHERE Plate_number = ?
+        SET Driver_name = ?, Plate_number = ?, Barangay = ?
+        WHERE id = ?
     `;
 
-    connect.query(query, [owner, franchise, barangay, image, plateNumber], (err, results) => {
+    connect.query(query, [Driver_name, Plate_number, Barangay, id], (err, results) => {
         if (err) {
             console.error('Error updating driver profile:', err);
             return res.status(500).json({ error: 'Failed to update driver profile.' });
         }
+
+        if (results.affectedRows === 0) {
+            return res.status(404).json({ error: 'Driver not found.' });
+        }
+
         res.json({ success: true, message: 'Driver profile updated successfully.' });
     });
 });
