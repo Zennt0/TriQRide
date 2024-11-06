@@ -356,7 +356,10 @@ app.get('/api/driver/:plateNumber', (req, res) => {
 app.put('/api/driver/update', (req, res) => {
     const { id, Driver_name, Plate_number, Barangay } = req.body;
 
+    console.log('Received update request:', req.body); // Log incoming data
+
     if (!id) {
+        console.error('Error: Driver ID is required.');
         return res.status(400).json({ error: 'Driver ID is required.' });
     }
 
@@ -373,9 +376,11 @@ app.put('/api/driver/update', (req, res) => {
         }
 
         if (results.affectedRows === 0) {
+            console.error('Error: Driver not found.');
             return res.status(404).json({ error: 'Driver not found.' });
         }
 
+        console.log('Driver profile updated successfully:', results);
         res.json({ success: true, message: 'Driver profile updated successfully.' });
     });
 });
