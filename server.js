@@ -353,7 +353,7 @@ app.get('/api/driver/:plateNumber', (req, res) => {
     });
 });
 
-app.put('/api/driver/:plateNumber', (req, res) => {
+app.put('/api/driver/update', (req, res) => {
     const plateNumber = req.params.plateNumber;
     const { owner, franchise, barangay, image } = req.body;
 
