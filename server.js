@@ -832,6 +832,26 @@ app.post('/api/reset-violations', (req, res) => {
     });
 });
 
+app.get('/api/seminar-attendance', (req, res) => {
+    const query = `
+        SELECT 
+            DATE_FORMAT(attendance_date, '%Y-%m') AS month,
+            COUNT(*) AS attendees
+        FROM seminar_attendance
+        GROUP BY month
+        ORDER BY month;
+    `;
+
+    connect.query(query, (err, results) => {
+        if (err) {
+            console.error('Error fetching seminar attendance data:', err);
+            return res.status(500).json({ error: 'Failed to fetch attendance data.' });
+        }
+        
+        res.json(results);
+    });
+});
+
 app.get('/api/server-time', (req, res) => {
   res.json({ serverTime: Date.now() }); 
 });
