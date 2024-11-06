@@ -353,7 +353,7 @@ app.get('/api/driver/:plateNumber', (req, res) => {
     });
 });
 
-app.put('/api/driver/update/:id', (req, res) => {
+app.put('/api/driver/update', (req, res) => {
     const { id, Driver_name, Plate_number, Barangay } = req.body;
 
     console.log('Received update request:', req.body); // Log incoming data
