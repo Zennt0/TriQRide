@@ -623,11 +623,21 @@ app.post('/api/report/:id', async (req, res) => {
 
         const driverId = rows[0].id;
 
+        // Set report datetime to Asia/Manila timezone
         const now = new Date();
-        const reportDateTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
-            .toISOString()
-            .slice(0, 19)
-            .replace('T', ' ');
+        const reportDateTime = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Asia/Manila',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+            hour: '2-digit',
+            minute: '2-digit',
+            second: '2-digit',
+            hour12: false
+        }).format(now).replace(',', '');
+
+        // Alternatively, you could use moment-timezone:
+        // const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD HH:mm:ss');
 
         // Updated INSERT query to include reporter_name
         const insertQuery = `
