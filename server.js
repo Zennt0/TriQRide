@@ -392,7 +392,7 @@ app.get('/api/reports', (req, res) => {
     let selectedMonth = req.query.month;
     
     // Set timezone to Asia/Manila
-    connect.query("SET time_zone = '+08:00'", (err) => {
+    connect.query("SET time_zone = 'Asia/Manila'", (err) => {
         if (err) {
             console.error('Error setting timezone:', err);
             return res.status(500).json({ error: 'Failed to set timezone.' });
