@@ -4,6 +4,7 @@ const path = require('path');
 const bcrypt = require('bcrypt');
 const mysql = require('mysql');
 const moment = require('moment');
+const moment = require('moment-timezone);
 const bodyParser = require('body-parser');
 const admin = require('firebase-admin');
 const nodemailer = require('nodemailer');
@@ -624,13 +625,7 @@ app.post('/api/report/:id', async (req, res) => {
         const driverId = rows[0].id; // Fetch driver ID
 
         // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
-        const now = new Date();
-        const manilaOffset = 8; // Manila is UTC+8
-        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
-        const reportDateTime = new Date(utc + (3600000 * manilaOffset))
-        .toISOString()
-        .slice(0, 19)
-        .replace('T', ' ');
+        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD HH:mm:ss');
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
