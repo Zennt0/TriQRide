@@ -630,8 +630,8 @@ app.post('/api/report/:id', async (req, res) => {
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
-        INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
-        VALUES (?, ?, ?, ?, ?, CONVERT_TZ(NOW(), '+00:00', '+08:00'), ?)
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, reportDateTime, reporter_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         const violations = report ? report.trim() : '';  // Use empty string if no report is provided
         const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime , reporter_name || ''];
