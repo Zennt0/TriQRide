@@ -603,7 +603,7 @@ app.post('/api/token', (req, res) => {
 
 
 app.post('/api/report/:id', async (req, res) => {
-    const { plate, driver, report, fcm_token, ratings } = req.body;
+    const { plate, driver, report, fcm_token, ratings, reporter_name } = req.body;
 
     // Validate the input: Make report optional but require plate, driver, FCM token, and ratings
     if (!plate || !driver || !fcm_token || !ratings) {
@@ -632,11 +632,11 @@ app.post('/api/report/:id', async (req, res) => {
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
-            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         const violations = report ? report.trim() : '';  // Use empty string if no report is provided
-        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime];
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime , reporter_name || ''];
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
@@ -652,7 +652,8 @@ app.post('/api/report/:id', async (req, res) => {
                 driver,
                 violations,  // Violations may be empty if no report
                 ratings,
-                report_datetime: reportDateTime
+                report_datetime: reportDateTime,
+                reporter_name: reporter_name || ''
             });
 
             // Prepare notification payload with PH time
