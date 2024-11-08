@@ -625,10 +625,12 @@ app.post('/api/report/:id', async (req, res) => {
 
         // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
         const now = new Date();
-        const reportDateTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
-            .toISOString()
-            .slice(0, 19)
-            .replace('T', ' ');  // Format to 'YYYY-MM-DD HH:MM:SS'
+        const manilaOffset = 8; // Manila is UTC+8
+        const utc = now.getTime() + (now.getTimezoneOffset() * 60000);
+        const reportDateTime = new Date(utc + (3600000 * manilaOffset))
+        .toISOString()
+        .slice(0, 19)
+        .replace('T', ' ');
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
