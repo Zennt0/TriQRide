@@ -625,13 +625,8 @@ app.post('/api/report/:id', async (req, res) => {
         const driverId = rows[0].id; // Fetch driver ID
 
         // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
-        const currentDate = new Date();
-        const options = { timeZone: 'Asia/Manila', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false };
-        const [date, time] = currentDate.toLocaleString('en-US', options).split(', '); 
-
-// Convert date from MM/DD/YYYY to YYYY-MM-DD format for MySQL
-        const [month, day, year] = date.split('/');
-        const formattedDateTime = `${year}-${month}-${day} ${time}`;
+        const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        console.log('Report DateTime:', reportDateTime);
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
@@ -639,7 +634,7 @@ app.post('/api/report/:id', async (req, res) => {
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         const violations = report ? report.trim() : '';  // Use empty string if no report is provided
-        const insertValues = [plate, driver, violations, fcm_token, ratings, formattedDateTime , reporter_name || ''];
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime , reporter_name || ''];
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
