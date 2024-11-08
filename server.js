@@ -603,12 +603,14 @@ app.post('/api/token', (req, res) => {
 
 
 app.post('/api/report/:id', async (req, res) => {
-    const { plate, driver, report, fcm_token, ratings, reporter_name } = req.body;
+    const { plate, driver, report, fcm_token, ratings } = req.body;
 
+    // Validate the input: Make report optional but require plate, driver, FCM token, and ratings
     if (!plate || !driver || !fcm_token || !ratings) {
         return res.status(400).json({ error: 'Plate, driver name, FCM token, and ratings are required.' });
     }
 
+    // Check if driver exists in `driverlist`
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
@@ -619,20 +621,22 @@ app.post('/api/report/:id', async (req, res) => {
             return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
         }
 
-        const driverId = rows[0].id;
+        const driverId = rows[0].id; // Fetch driver ID
 
+        // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
         const now = new Date();
-        const reportDateTime = new Date(now.toLocaleString('en-CA', { timeZone: 'Asia/Manila' }))
+        const reportDateTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Manila' }))
             .toISOString()
             .slice(0, 19)
-            .replace('T', ' ');
+            .replace('T', ' ');  // Format to 'YYYY-MM-DD HH:MM:SS'
 
+        // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
-            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime)
+            VALUES (?, ?, ?, ?, ?, ?)
         `;
-        const violations = report ? report.trim() : '';
-        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime, reporter_name || ''];
+        const violations = report ? report.trim() : '';  // Use empty string if no report is provided
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime];
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
@@ -640,26 +644,28 @@ app.post('/api/report/:id', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
+            // Report submitted successfully
             res.json({
                 msg: 'Report submitted successfully!',
                 reportId: result.insertId,
                 plate,
                 driver,
-                violations,
+                violations,  // Violations may be empty if no report
                 ratings,
-                report_datetime: reportDateTime,
-                reporter_name: reporter_name || ''
+                report_datetime: reportDateTime
             });
 
+            // Prepare notification payload with PH time
             const notificationPayload = {
-                id: driverId,
+                id: driverId,  // Use driverId for tracking
                 title: "Report Notice:",
                 body: `Report Submitted To Municipal Office. \nFranchise Number: ${plate}`,
                 serverTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour12: true }),
                 serverDate: new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }),
-                fcm_token: fcm_token
+                fcm_token: fcm_token  // Use the fcm_token from the report
             };
 
+            // Send the notification after report submission
             fetch('https://triqride.onrender.com/sendnotification', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -667,12 +673,13 @@ app.post('/api/report/:id', async (req, res) => {
             })
             .then(response => {
                 if (!response.ok) {
+                    // Log the status code and response if it's not OK
                     return response.text().then(text => {
                         console.error('Error response:', text);
                         throw new Error(`Failed to send notification. Status: ${response.status}`);
                     });
                 }
-                return response.json();
+                return response.json();  // Attempt to parse JSON if the response is OK
             })
             .then(data => {
                 console.log('Notification Sent', data);
