@@ -390,41 +390,47 @@ app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;
     let selectedMonth = req.query.month;
     
-    // If no month is provided, default to the current month
-    if (!selectedMonth) {
-        const today = new Date();
-        selectedMonth = today.getMonth() + 1; // JavaScript months are 0-indexed, so +1 for the correct month
-    } else {
-        selectedMonth = parseInt(selectedMonth, 10); // Ensure it's an integer if provided
-    }
-
-    let query = 'SELECT * FROM reportlist';
-    const queryParams = [];
-
-    if (searchTerm || selectedMonth) {
-        query += ' WHERE';
-        const conditions = [];
-
-        if (searchTerm) {
-            conditions.push(' Plate_number LIKE ? ');
-            queryParams.push(`%${searchTerm}%`);
-        }
-
-        if (selectedMonth) {
-            conditions.push(' MONTH(report_datetime) = ? ');
-            queryParams.push(selectedMonth);
-        }
-
-        query += conditions.join(' AND ');
-    }
-
-    connect.query(query, queryParams, (err, results) => {
+    // Set timezone to Asia/Manila
+    connect.query("SET time_zone = '+08:00'", (err) => {
         if (err) {
-            console.error('Error fetching reports:', err);
-            return res.status(500).json({ error: 'Failed to fetch reports.' });
+            console.error('Error setting timezone:', err);
+            return res.status(500).json({ error: 'Failed to set timezone.' });
         }
 
-        res.json(results);
+        // If no month is provided, default to the current month
+        if (!selectedMonth) {
+            const today = new Date();
+            selectedMonth = today.getMonth() + 1;
+        } else {
+            selectedMonth = parseInt(selectedMonth, 10);
+        }
+
+        let query = 'SELECT * FROM reportlist';
+        const queryParams = [];
+
+        if (searchTerm || selectedMonth) {
+            query += ' WHERE';
+            const conditions = [];
+            if (searchTerm) {
+                conditions.push(' Plate_number LIKE ? ');
+                queryParams.push(`%${searchTerm}%`);
+            }
+            if (selectedMonth) {
+                conditions.push(' MONTH(report_datetime) = ? ');
+                queryParams.push(selectedMonth);
+            }
+            query += conditions.join(' AND ');
+        }
+
+        query += ' ORDER BY report_datetime DESC';
+
+        connect.query(query, queryParams, (err, results) => {
+            if (err) {
+                console.error('Error fetching reports:', err);
+                return res.status(500).json({ error: 'Failed to fetch reports.' });
+            }
+            res.json(results);
+        });
     });
 });
 
