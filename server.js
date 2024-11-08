@@ -624,13 +624,17 @@ app.post('/api/report/:id', async (req, res) => {
 
         const driverId = rows[0].id; // Fetch driver ID
 
-        // Insert a new report entry in the `reportlist` table without manually setting report_datetime
+        // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
+        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD hh:mm:ss A');
+        console.log('Report DateTime:', reportDateTime);
+
+        // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
-            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, reporter_name)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         const violations = report ? report.trim() : '';  // Use empty string if no report is provided
-        const insertValues = [plate, driver, violations, fcm_token, ratings, reporter_name || ''];
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime , reporter_name || ''];
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
@@ -638,25 +642,17 @@ app.post('/api/report/:id', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
-            // Fetch the inserted row to get the automatically generated report_datetime
-            connect.query('SELECT report_datetime FROM reportlist WHERE id = ?', [result.insertId], (err, datetimeResult) => {
-                if (err) {
-                    console.error('Error fetching report datetime:', err);
-                    return res.status(500).json({ error: 'Failed to retrieve report datetime.' });
-                }
-
-                const report_datetime = datetimeResult[0].report_datetime;
-
-                res.json({
-                    msg: 'Report submitted successfully!',
-                    reportId: result.insertId,
-                    plate,
-                    driver,
-                    violations,  // Violations may be empty if no report
-                    ratings,
-                    report_datetime, // Automatically set by database
-                    reporter_name: reporter_name || ''
-                });
+            // Report submitted successfully
+            res.json({
+                msg: 'Report submitted successfully!',
+                reportId: result.insertId,
+                plate,
+                driver,
+                violations,  // Violations may be empty if no report
+                ratings,
+                report_datetime: reportDateTime,
+                reporter_name: reporter_name || ''
+            });
 
             // Prepare notification payload with PH time
             const notificationPayload = {
