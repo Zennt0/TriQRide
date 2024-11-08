@@ -625,9 +625,10 @@ app.post('/api/report/:id', async (req, res) => {
         const driverId = rows[0].id; // Fetch driver ID
 
         // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
-        const reportDateTime = new Date().toLocaleString('en-US', { timeZone: 'Asia/Manila' })
-            .replace(',', '') // Remove the comma for MySQL compatibility
-            .replace(/\//g, '-'); // Replace '/' with '-' for MySQL date format
+        const currentDate = new Date();
+        const options = { timeZone: 'Asia/Manila', hour12: true };
+        const reportDateTime = currentDate.toLocaleString('en-US', options).replace(',', '').replace(/\/|:/g, '-');
+        const formattedDateTime = reportDateTime.replace(' ', 'T').slice(0, 19);
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
