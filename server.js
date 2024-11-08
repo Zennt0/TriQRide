@@ -625,12 +625,12 @@ app.post('/api/report/:id', async (req, res) => {
         const driverId = rows[0].id; // Fetch driver ID
 
         // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
-        const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD hh:mm:ss');
         console.log('Report DateTime:', reportDateTime);
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
-            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, reportDateTime, reporter_name)
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
         const violations = report ? report.trim() : '';  // Use empty string if no report is provided
