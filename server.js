@@ -617,7 +617,7 @@ app.post('/api/report/:id', async (req, res) => {
         const driverId = rows[0].id; // Fetch driver ID
 
         // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
-        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD hh:mm:ss A');
+        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD hh:mm:ss');
         console.log('Report DateTime:', reportDateTime);
 
         // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
