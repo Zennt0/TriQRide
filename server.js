@@ -681,6 +681,7 @@ app.post('/api/report/:id', async (req, res) => {
 });
 
 
+
 // New route: Send notification to a user
 app.post('/sendnotification', (req, res) => {
     const { id, title, body, serverTime, serverDate, fcm_token } = req.body;
