@@ -426,7 +426,6 @@ app.get('/api/reports', (req, res) => {
             res.json(results);
         });
     });
-});
 
 
 app.get('/api/seminar', (req, res) => {
