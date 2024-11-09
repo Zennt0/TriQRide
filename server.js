@@ -606,12 +606,10 @@ app.post('/api/token', (req, res) => {
 app.post('/api/report/:id', async (req, res) => {
     const { plate, driver, report, fcm_token, ratings, reporter_name } = req.body;
 
-    // Validate the input: Make report optional but require plate, driver, FCM token, and ratings
     if (!plate || !driver || !fcm_token || !ratings) {
         return res.status(400).json({ error: 'Plate, driver name, FCM token, and ratings are required.' });
     }
 
-    // Check if driver exists in `driverlist`
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
@@ -622,19 +620,26 @@ app.post('/api/report/:id', async (req, res) => {
             return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
         }
 
-        const driverId = rows[0].id; // Fetch driver ID
+        const driverId = rows[0].id;
 
-        // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
-        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD hh:mm:ss');
-        console.log('Report DateTime:', reportDateTime);
+        // Create a moment object in Manila timezone
+        const manilaDateTime = moment().tz('Asia/Manila');
+        
+        // Format for MySQL database (YYYY-MM-DD HH:mm:ss)
+        const reportDateTime = manilaDateTime.format('YYYY-MM-DD HH:mm:ss');
+        
+        // Format for frontend display and API response
+        const displayDateTime = manilaDateTime.format();  // ISO8601 format with timezone
 
-        // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
+        console.log('Database DateTime:', reportDateTime);
+        console.log('Display DateTime:', displayDateTime);
+
         const insertQuery = `
             INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
-        const violations = report ? report.trim() : '';  // Use empty string if no report is provided
-        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime , reporter_name || ''];
+        const violations = report ? report.trim() : '';
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime, reporter_name || ''];
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
@@ -642,15 +647,15 @@ app.post('/api/report/:id', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
-            // Report submitted successfully
+            // Include both formats in the response
             res.json({
                 msg: 'Report submitted successfully!',
                 reportId: result.insertId,
                 plate,
                 driver,
-                violations,  // Violations may be empty if no report
+                violations,
                 ratings,
-                report_datetime: reportDateTime,
+                report_datetime: displayDateTime,  // ISO8601 format for frontend
                 reporter_name: reporter_name || ''
             });
 
