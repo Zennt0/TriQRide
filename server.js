@@ -390,13 +390,6 @@ app.put('/api/driver/update', (req, res) => {
 app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;
     let selectedMonth = req.query.month;
-    
-    // Set timezone to Asia/Manila
-    connect.query("SET time_zone = '+08:00'", (err) => {
-        if (err) {
-            console.error('Error setting timezone:', err);
-            return res.status(500).json({ error: 'Failed to set timezone.' });
-        }
 
         // If no month is provided, default to the current month
         if (!selectedMonth) {
