@@ -598,94 +598,84 @@ app.post('/api/token', (req, res) => {
 app.post('/api/report/:id', async (req, res) => {
     const { plate, driver, report, fcm_token, ratings, reporter_name } = req.body;
 
-    if (!plate || !driver || !fcm_token || !ratings) {
-        return res.status(400).json({ error: 'Plate, driver name, FCM token, and ratings are required.' });
+    // Validate the input
+    if (!plate || !driver || !report || !fcm_token || !ratings) {
+        return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
     }
 
-    // First set the session timezone to Asia/Manila
-    connect.query("SET time_zone = '+08:00'", (tzErr) => {
-        if (tzErr) {
-            console.error('Error setting timezone:', tzErr);
-            return res.status(500).json({ error: 'Failed to set timezone.' });
+    // Check if driver exists in `driverlist`
+    connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
+        if (err) {
+            console.error('Error fetching driver data:', err);
+            return res.status(500).json({ error: 'Failed to fetch driver data.' });
         }
 
-        connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
+        if (rows.length === 0) {
+            return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
+        }
+
+        const driverId = rows[0].id; // Fetch driver ID
+
+        // Set the current datetime for the report
+        const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        console.log('Report DateTime:', reportDateTime);
+
+        // Insert a new report entry in the `reportlist` table
+        const insertQuery = `
+            INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        `;
+        const violations = report ? report.trim() : '';  // Use empty string if no report is provided
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime , reporter_name || ''];
+
+        connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
-                console.error('Error fetching driver data:', err);
-                return res.status(500).json({ error: 'Failed to fetch driver data.' });
+                console.error('Error inserting report:', err);
+                return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
-            if (rows.length === 0) {
-                return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
-            }
-
-            const driverId = rows[0].id;
-
-            // Create a moment object in Manila timezone
-            const manilaDateTime = moment().tz('Asia/Manila');
-            
-            // Format for MySQL database - store as UTC
-            const reportDateTime = manilaDateTime.format('YYYY-MM-DD HH:mm:ss');
-
-            const insertQuery = `
-                INSERT INTO reportlist (
-                    Plate_number, Driver_name, Violations, fcm_token, 
-                    ratings, report_datetime, reporter_name
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-            `;
-            const violations = report ? report.trim() : '';
-            const insertValues = [
-                plate, driver, violations, fcm_token, 
-                ratings, reportDateTime, reporter_name || ''
-            ];
-
-            connect.query(insertQuery, insertValues, (err, result) => {
-                if (err) {
-                    console.error('Error inserting report:', err);
-                    return res.status(500).json({ error: 'Failed to submit report.' });
-                }
-
-                // Return the datetime in ISO format with timezone
-                res.json({
-                    msg: 'Report submitted successfully!',
-                    reportId: result.insertId,
-                    plate,
-                    driver,
-                    violations,
-                    ratings,
-                    report_datetime: manilaDateTime.toISOString(),
-                    reporter_name: reporter_name || ''
-                });
-
-                // Notification payload
-                const notificationPayload = {
-                    id: driverId,
-                    title: "Report Notice:",
-                    body: `Report Submitted To Municipal Office. \nFranchise Number: ${plate}`,
-                    serverTime: manilaDateTime.format('hh:mm:ss A'),
-                    serverDate: manilaDateTime.format('MM/DD/YYYY'),
-                    fcm_token: fcm_token
-                };
-
-                // Send notification
-                fetch('https://triqride.onrender.com/sendnotification', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(notificationPayload)
-                })
-                .then(response => {
-                    if (!response.ok) {
-                        return response.text().then(text => {
-                            console.error('Error response:', text);
-                            throw new Error(`Failed to send notification. Status: ${response.status}`);
-                        });
-                    }
-                    return response.json();
-                })
-                .then(data => console.log('Notification Sent', data))
-                .catch(err => console.error('Error sending notification', err));
+            // Report submitted successfully
+             res.json({
+                msg: 'Report submitted successfully!',
+                reportId: result.insertId,
+                plate,
+                driver,
+                violations,  // Violations may be empty if no report
+                ratings,
+                report_datetime: reportDateTime,
+                reporter_name: reporter_name || ''
             });
+
+            // Prepare notification payload with PH time
+            const notificationPayload = {
+                id: driverId,  // Use driverId for tracking
+                title: "Report Notice:",
+                body: `Report Submitted To Municipal Office. \nFranchise Number: ${plate}`,
+                serverTime: new Date().toLocaleTimeString('en-US', { timeZone: 'Asia/Manila', hour12: true }),
+                serverDate: new Date().toLocaleDateString('en-US', { timeZone: 'Asia/Manila' }),
+                fcm_token: fcm_token  // Use the fcm_token from the report
+            };
+
+            // Send the notification after report submission
+            fetch('https://triqride.onrender.com/sendnotification', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(notificationPayload)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Log the status code and response if it's not OK
+                    return response.text().then(text => {
+                        console.error('Error response:', text);
+                        throw new Error(`Failed to send notification. Status: ${response.status}`);
+                    });
+                }
+                return response.json();  // Attempt to parse JSON if the response is OK
+            })
+            .then(data => {
+                console.log('Notification Sent', data);
+            })
+            .catch(err => console.error('Error sending notification', err));
         });
     });
 });
