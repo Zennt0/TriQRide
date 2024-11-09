@@ -598,9 +598,9 @@ app.post('/api/token', (req, res) => {
 app.post('/api/report/:id', async (req, res) => {
     const { plate, driver, report, fcm_token, ratings, reporter_name } = req.body;
 
-    // Validate the input
-    if (!plate || !driver || !report || !fcm_token || !ratings) {
-        return res.status(400).json({ error: 'Plate, driver name, report, FCM token, and ratings are required.' });
+    // Validate the input: Make report optional but require plate, driver, FCM token, and ratings
+    if (!plate || !driver || !fcm_token || !ratings) {
+        return res.status(400).json({ error: 'Plate, driver name, FCM token, and ratings are required.' });
     }
 
     // Check if driver exists in `driverlist`
@@ -616,11 +616,11 @@ app.post('/api/report/:id', async (req, res) => {
 
         const driverId = rows[0].id; // Fetch driver ID
 
-        // Set the current datetime for the report
-        const reportDateTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+        // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
+        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD hh:mm:ss A');
         console.log('Report DateTime:', reportDateTime);
 
-        // Insert a new report entry in the `reportlist` table
+        // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
             INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
             VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -635,7 +635,7 @@ app.post('/api/report/:id', async (req, res) => {
             }
 
             // Report submitted successfully
-             res.json({
+            res.json({
                 msg: 'Report submitted successfully!',
                 reportId: result.insertId,
                 plate,
