@@ -391,42 +391,50 @@ app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;
     let selectedMonth = req.query.month;
 
-        // If no month is provided, default to the current month
-        if (!selectedMonth) {
-            const today = new Date();
-            selectedMonth = today.getMonth() + 1;
-        } else {
-            selectedMonth = parseInt(selectedMonth, 10);
+    if (!selectedMonth) {
+        const today = moment().tz('Asia/Manila');
+        selectedMonth = today.month() + 1;
+    } else {
+        selectedMonth = parseInt(selectedMonth, 10);
+    }
+
+    let query = `
+        SELECT 
+            id,
+            Plate_number,
+            Driver_name,
+            Violations,
+            fcm_token,
+            ratings,
+            DATE_FORMAT(report_datetime, '%Y-%m-%d %H:%i:%s') as report_datetime,
+            reporter_name
+        FROM reportlist
+    `;
+
+    const queryParams = [];
+    if (searchTerm || selectedMonth) {
+        query += ' WHERE';
+        const conditions = [];
+        if (searchTerm) {
+            conditions.push(' Plate_number LIKE ? ');
+            queryParams.push(`%${searchTerm}%`);
         }
-
-        let query = 'SELECT * FROM reportlist';
-        const queryParams = [];
-
-        if (searchTerm || selectedMonth) {
-            query += ' WHERE';
-            const conditions = [];
-            if (searchTerm) {
-                conditions.push(' Plate_number LIKE ? ');
-                queryParams.push(`%${searchTerm}%`);
-            }
-            if (selectedMonth) {
-                conditions.push(' MONTH(report_datetime) = ? ');
-                queryParams.push(selectedMonth);
-            }
-            query += conditions.join(' AND ');
+        if (selectedMonth) {
+            conditions.push(' MONTH(report_datetime) = ? ');
+            queryParams.push(selectedMonth);
         }
+        query += conditions.join(' AND ');
+    }
+    query += ' ORDER BY report_datetime DESC';
 
-        query += ' ORDER BY report_datetime DESC';
-
-        connect.query(query, queryParams, (err, results) => {
-            if (err) {
-                console.error('Error fetching reports:', err);
-                return res.status(500).json({ error: 'Failed to fetch reports.' });
-            }
-            res.json(results);
-        });
+    connect.query(query, queryParams, (err, results) => {
+        if (err) {
+            console.error('Error fetching reports:', err);
+            return res.status(500).json({ error: 'Failed to fetch reports.' });
+        }
+        res.json(results);
     });
-
+});
 
 app.get('/api/seminar', (req, res) => {
     const searchTerm = req.query.search; // Get the search query parameter
@@ -598,12 +606,10 @@ app.post('/api/token', (req, res) => {
 app.post('/api/report/:id', async (req, res) => {
     const { plate, driver, report, fcm_token, ratings, reporter_name } = req.body;
 
-    // Validate the input: Make report optional but require plate, driver, FCM token, and ratings
     if (!plate || !driver || !fcm_token || !ratings) {
         return res.status(400).json({ error: 'Plate, driver name, FCM token, and ratings are required.' });
     }
 
-    // Check if driver exists in `driverlist`
     connect.query('SELECT id FROM driverlist WHERE Plate_number = ? AND Driver_name = ?', [plate, driver], (err, rows) => {
         if (err) {
             console.error('Error fetching driver data:', err);
@@ -614,19 +620,18 @@ app.post('/api/report/:id', async (req, res) => {
             return res.status(404).json({ error: 'Driver not found for the provided Plate and Driver.' });
         }
 
-        const driverId = rows[0].id; // Fetch driver ID
+        const driverId = rows[0].id;
 
-        // Get current datetime in the Philippine timezone (Asia/Manila) and format it for MySQL
-        const reportDateTime = moment().tz('Asia/Manila').format('YYYY-MM-DD hh:mm:ss');
-        console.log('Report DateTime:', reportDateTime);
+        // Store date in UTC in the database
+        const reportDateTime = moment().tz('Asia/Manila')
+            .format('YYYY-MM-DD HH:mm:ss'); // Note: Using HH for 24-hour format
 
-        // Insert a new report entry in the `reportlist` table, making sure to handle empty `report` properly
         const insertQuery = `
             INSERT INTO reportlist (Plate_number, Driver_name, Violations, fcm_token, ratings, report_datetime, reporter_name)
             VALUES (?, ?, ?, ?, ?, ?, ?)
         `;
-        const violations = report ? report.trim() : '';  // Use empty string if no report is provided
-        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime , reporter_name || ''];
+        const violations = report ? report.trim() : '';
+        const insertValues = [plate, driver, violations, fcm_token, ratings, reportDateTime, reporter_name || ''];
 
         connect.query(insertQuery, insertValues, (err, result) => {
             if (err) {
@@ -634,13 +639,12 @@ app.post('/api/report/:id', async (req, res) => {
                 return res.status(500).json({ error: 'Failed to submit report.' });
             }
 
-            // Report submitted successfully
             res.json({
                 msg: 'Report submitted successfully!',
                 reportId: result.insertId,
                 plate,
                 driver,
-                violations,  // Violations may be empty if no report
+                violations,
                 ratings,
                 report_datetime: reportDateTime,
                 reporter_name: reporter_name || ''
