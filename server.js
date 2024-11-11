@@ -213,9 +213,14 @@ app.get('/pending-admins', (req, res) => {
     );
 });
 
+// Approve admin route
 app.post('/approve-admin/:id', (req, res) => {
     const { id } = req.params;
-    const headAdminId = req.body.headAdminId; // Pass head admin ID in request body
+    const headAdminId = req.headers.headadminid; // Extract from headers
+
+    if (!headAdminId) {
+        return res.status(403).json({ message: 'Unauthorized: Missing Head Admin ID' });
+    }
 
     connect.query('SELECT * FROM users WHERE id = ?', [headAdminId], (err, result) => {
         if (err) {
@@ -224,7 +229,6 @@ app.post('/approve-admin/:id', (req, res) => {
         }
 
         const currentUser = result[0];
-        
         if (!currentUser || currentUser.role !== 'Head Admin') {
             return res.status(403).json({ message: 'Unauthorized' });
         }
@@ -236,7 +240,6 @@ app.post('/approve-admin/:id', (req, res) => {
                     console.error("Database error:", err);
                     return res.status(500).json({ message: 'Error updating approval status' });
                 }
-
                 res.json({ message: 'Admin approved successfully' });
             }
         );
@@ -246,7 +249,11 @@ app.post('/approve-admin/:id', (req, res) => {
 // Deny admin route
 app.post('/deny-admin/:id', (req, res) => {
     const { id } = req.params;
-    const headAdminId = req.body.headAdminId; // Pass head admin ID in request body
+    const headAdminId = req.headers.headadminid; // Extract from headers
+
+    if (!headAdminId) {
+        return res.status(403).json({ message: 'Unauthorized: Missing Head Admin ID' });
+    }
 
     connect.query('SELECT * FROM users WHERE id = ?', [headAdminId], (err, result) => {
         if (err) {
@@ -255,7 +262,6 @@ app.post('/deny-admin/:id', (req, res) => {
         }
 
         const currentUser = result[0];
-
         if (!currentUser || currentUser.role !== 'Head Admin') {
             return res.status(403).json({ message: 'Unauthorized' });
         }
