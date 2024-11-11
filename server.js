@@ -145,6 +145,7 @@ app.post('/login', (req, res) => {
         // Send both role and ID
         res.json({ 
             message: 'Login successful', 
+            fullname: user.fullname,
             role: user.role,
             userId: user.id // Add this line
         });
