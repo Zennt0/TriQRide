@@ -63,6 +63,85 @@ app.use((req, res, next) => {
 });;
 
 // Login endpoint
+app.post('/create-head-admin', async (req, res) => {
+    const { username, fullname, password } = req.body;
+
+    // Check if required fields are present
+    if (!username || !fullname || !password) {
+        return res.status(400).json({ message: 'All fields are required' });
+    }
+
+    // First check if Head Admin exists
+    connect.query('SELECT * FROM users WHERE role = "Head Admin"', async (err, result) => {
+        if (err) {
+            console.error('Database query error:', err);
+            return res.status(500).json({ message: 'Database error' });
+        }
+
+        // If Head Admin exists
+        if (result.length > 0) {
+            return res.status(400).json({ message: 'Head Admin already exists' });
+        }
+
+        try {
+            // Hash the password
+            const hashedPassword = await bcrypt.hash(password, 10);
+
+            // Create Head Admin user object
+            const headAdmin = {
+                username: username,
+                fullname: fullname,
+                password: hashedPassword,
+                role: 'Head Admin',
+                approval_status: 'approved'
+            };
+
+            // Insert Head Admin into database with explicit fields
+            const query = `
+                INSERT INTO users (username, fullname, password, role, approval_status) 
+                VALUES (?, ?, ?, ?, ?)
+            `;
+            
+            connect.query(
+                query, 
+                [headAdmin.username, headAdmin.fullname, headAdmin.password, headAdmin.role, headAdmin.approval_status],
+                (err, result) => {
+                    if (err) {
+                        console.error('Error creating Head Admin:', err);
+                        return res.status(500).json({ message: 'Error creating Head Admin' });
+                    }
+                    
+                    console.log('Head Admin created successfully:', result);
+                    res.status(201).json({ 
+                        message: 'Head Admin created successfully',
+                        username: username
+                    });
+                }
+            );
+        } catch (error) {
+            console.error('Error in head admin creation:', error);
+            res.status(500).json({ message: 'Server error' });
+        }
+    });
+});
+
+app.get('/check-head-admin', (req, res) => {
+    connect.query('SELECT * FROM users WHERE role = "Head Admin"', (err, result) => {
+        if (err) {
+            console.error('Database query error:', err);
+            return res.status(500).json({ message: 'Database error' });
+        }
+
+        // If Head Admin exists, send a response indicating that
+        if (result.length > 0) {
+            return res.json({ headAdminExists: true });
+        } else {
+            return res.json({ headAdminExists: false });
+        }
+    });
+});
+
+// Login endpoint
 app.post('/login', (req, res) => {
     const { username, password } = req.body;
 
@@ -82,47 +161,136 @@ app.post('/login', (req, res) => {
             return res.status(400).json({ message: 'Invalid username or password' });
         }
 
-        // Send the full name of the user back to the frontend
-        res.json({ message: 'Login successful', fullname: user.fullname });
+        // Send both role and ID
+        res.json({ 
+            message: 'Login successful', 
+            role: user.role,
+            userId: user.id // Add this line
+        });
     });
 });
 
-
+// Create account endpoint
 app.post('/register', async (req, res) => {
-    const { username, fullname, password } = req.body;
+    const { username, fullname, password, role } = req.body;
 
-    console.log('Registration attempt for username:', username); 
+    // Validate input fields
+    if (!username || !fullname || !password) {
+        return res.status(400).json({ message: 'All fields are required' });
+    }
 
-    connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
+    // Check if Head Admin already exists
+    connect.query('SELECT * FROM users WHERE role = "Head Admin"', async (err, result) => {
         if (err) {
-            console.error('Database query error:', err); 
-            return res.status(500).json({ message: 'Database query error' });
-        }
-
-        if (result.length > 0) {
-            console.warn('Username already exists:', username); 
-            return res.status(400).json({ message: 'Username already exists' });
+            console.error('Database query error:', err);
+            return res.status(500).json({ message: 'Database error' });
         }
 
         try {
             const hashedPassword = await bcrypt.hash(password, 10);
-            const newUser = { username, fullname, password: hashedPassword };
 
-            connect.query('INSERT INTO users SET ?', newUser, (err) => {
+            let approvalStatus = 'pending';
+            let adminRequest = 'pending';
+
+            // Handle Head Admin creation
+            if (role === 'Head Admin' && result.length === 0) {
+                approvalStatus = 'approved';
+                adminRequest = 'null';
+            }
+
+            const query = `
+                INSERT INTO users (username, fullname, password, role, approval_status, admin_request) 
+                VALUES (?, ?, ?, ?, ?, ?)
+            `;
+            
+            connect.query(query, [username, fullname, hashedPassword, role, approvalStatus, adminRequest], (err, result) => {
                 if (err) {
-                    console.error('Error creating account:', err); // Log the error
+                    console.error('Error creating account:', err);
                     return res.status(500).json({ message: 'Error creating account' });
                 }
-                console.log('Account created successfully for username:', username); 
+
                 res.status(201).json({ message: 'Account created successfully' });
             });
         } catch (error) {
-            console.error('Error during password hashing:', error); // Log any error that occurs while hashing password
-            return res.status(500).json({ message: 'Error creating account' });
+            console.error('Error in account creation:', error);
+            res.status(500).json({ message: 'Server error' });
         }
     });
 });
 
+app.get('/pending-admins', (req, res) => {
+    connect.query(
+        'SELECT id, fullname, username FROM users WHERE role = "Admin" AND approval_status = "pending"',
+        (err, results) => {
+            if (err) {
+                console.error("Database error:", err);
+                return res.status(500).json({ message: "Database error" });
+            }
+            res.json(results);
+        }
+    );
+});
+
+app.post('/approve-admin/:id', (req, res) => {
+    const { id } = req.params;
+    const headAdminId = req.body.headAdminId; // Pass head admin ID in request body
+
+    connect.query('SELECT * FROM users WHERE id = ?', [headAdminId], (err, result) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ message: 'Database query error' });
+        }
+
+        const currentUser = result[0];
+        
+        if (!currentUser || currentUser.role !== 'Head Admin') {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        connect.query('UPDATE users SET approval_status = "approved", admin_request = NULL WHERE id = ?', 
+            [id], 
+            (err, result) => {
+                if (err) {
+                    console.error("Database error:", err);
+                    return res.status(500).json({ message: 'Error updating approval status' });
+                }
+
+                res.json({ message: 'Admin approved successfully' });
+            }
+        );
+    });
+});
+
+// Deny admin route
+app.post('/deny-admin/:id', (req, res) => {
+    const { id } = req.params;
+    const headAdminId = req.body.headAdminId; // Pass head admin ID in request body
+
+    connect.query('SELECT * FROM users WHERE id = ?', [headAdminId], (err, result) => {
+        if (err) {
+            console.error("Database error:", err);
+            return res.status(500).json({ message: 'Database query error' });
+        }
+
+        const currentUser = result[0];
+
+        if (!currentUser || currentUser.role !== 'Head Admin') {
+            return res.status(403).json({ message: 'Unauthorized' });
+        }
+
+        connect.query(
+            'UPDATE users SET approval_status = "denied", admin_request = NULL WHERE id = ?',
+            [id],
+            (err, result) => {
+                if (err) {
+                    console.error("Database error:", err);
+                    return res.status(500).json({ message: 'Error updating approval status' });
+                }
+                res.json({ message: 'Admin denied successfully' });
+            }
+        );
+    });
+});
 
 // Validate image types (JPEG, PNG, GIF) and limit file size to 5MB
 const upload = multer({
