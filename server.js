@@ -218,28 +218,40 @@ app.post('/approve-admin/:id', (req, res) => {
     const { id } = req.params;
     const headAdminId = req.headers.headadminid; // Extract from headers
 
+    console.log("Approving admin ID:", id);
+    console.log("Received Head Admin ID:", headAdminId);
+
+    // Check if headAdminId is present
     if (!headAdminId) {
+        console.log("Missing Head Admin ID in request headers");
         return res.status(403).json({ message: 'Unauthorized: Missing Head Admin ID' });
     }
 
+    // Check if headAdminId exists in the database
     connect.query('SELECT * FROM users WHERE id = ?', [headAdminId], (err, result) => {
         if (err) {
-            console.error("Database error:", err);
+            console.error("Database error while fetching Head Admin:", err);
             return res.status(500).json({ message: 'Database query error' });
         }
 
+        console.log("Head Admin Query Result:", result);
+
         const currentUser = result[0];
         if (!currentUser || currentUser.role !== 'Head Admin') {
+            console.log("Unauthorized access: User is not a Head Admin");
             return res.status(403).json({ message: 'Unauthorized' });
         }
 
-        connect.query('UPDATE users SET approval_status = "approved", admin_request = NULL WHERE id = ?', 
-            [id], 
+        // Approve the admin
+        connect.query(
+            'UPDATE users SET approval_status = "approved", admin_request = NULL WHERE id = ?',
+            [id],
             (err, result) => {
                 if (err) {
-                    console.error("Database error:", err);
+                    console.error("Database error while approving admin:", err);
                     return res.status(500).json({ message: 'Error updating approval status' });
                 }
+                console.log("Admin approved successfully");
                 res.json({ message: 'Admin approved successfully' });
             }
         );
@@ -251,29 +263,40 @@ app.post('/deny-admin/:id', (req, res) => {
     const { id } = req.params;
     const headAdminId = req.headers.headadminid; // Extract from headers
 
+    console.log("Denying admin ID:", id);
+    console.log("Received Head Admin ID:", headAdminId);
+
+    // Check if headAdminId is present
     if (!headAdminId) {
+        console.log("Missing Head Admin ID in request headers");
         return res.status(403).json({ message: 'Unauthorized: Missing Head Admin ID' });
     }
 
+    // Check if headAdminId exists in the database
     connect.query('SELECT * FROM users WHERE id = ?', [headAdminId], (err, result) => {
         if (err) {
-            console.error("Database error:", err);
+            console.error("Database error while fetching Head Admin:", err);
             return res.status(500).json({ message: 'Database query error' });
         }
 
+        console.log("Head Admin Query Result:", result);
+
         const currentUser = result[0];
         if (!currentUser || currentUser.role !== 'Head Admin') {
+            console.log("Unauthorized access: User is not a Head Admin");
             return res.status(403).json({ message: 'Unauthorized' });
         }
 
+        // Deny the admin
         connect.query(
             'UPDATE users SET approval_status = "denied", admin_request = NULL WHERE id = ?',
             [id],
             (err, result) => {
                 if (err) {
-                    console.error("Database error:", err);
+                    console.error("Database error while denying admin:", err);
                     return res.status(500).json({ message: 'Error updating approval status' });
                 }
+                console.log("Admin denied successfully");
                 res.json({ message: 'Admin denied successfully' });
             }
         );
