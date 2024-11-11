@@ -142,7 +142,12 @@ app.post('/login', (req, res) => {
             return res.status(400).json({ message: 'Invalid username or password' });
         }
 
-        // Send both role and ID
+        // Check if user is approved
+        if (user.approval_status !== 'approved') {
+            return res.status(403).json({ message: 'Access denied.' });
+        }
+
+        // Proceed with login if approved
         res.json({ 
             message: 'Login successful', 
             fullname: user.fullname,
