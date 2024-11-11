@@ -65,79 +65,60 @@ app.use((req, res, next) => {
 // Login endpoint
 app.post('/create-head-admin', async (req, res) => {
     const { username, fullname, password } = req.body;
-
-    // Check if required fields are present
+    
     if (!username || !fullname || !password) {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // First check if Head Admin exists
-    connect.query('SELECT * FROM users WHERE role = "Head Admin"', async (err, result) => {
+    // Check if username already exists
+    connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
         if (err) {
-            console.error('Database query error:', err);
             return res.status(500).json({ message: 'Database error' });
         }
 
-        // If Head Admin exists
         if (result.length > 0) {
-            return res.status(400).json({ message: 'Head Admin already exists' });
+            return res.status(400).json({ message: 'Username already exists' });
         }
 
-        try {
-            // Hash the password
-            const hashedPassword = await bcrypt.hash(password, 10);
+        // Check if Head Admin exists
+        connect.query('SELECT * FROM users WHERE role = "Head Admin"', async (err, result) => {
+            if (err) {
+                return res.status(500).json({ message: 'Database error' });
+            }
 
-            // Create Head Admin user object
-            const headAdmin = {
-                username: username,
-                fullname: fullname,
-                password: hashedPassword,
-                role: 'Head Admin',
-                approval_status: 'approved'
-            };
+            if (result.length > 0) {
+                return res.status(400).json({ message: 'Head Admin already exists' });
+            }
 
-            // Insert Head Admin into database with explicit fields
-            const query = `
-                INSERT INTO users (username, fullname, password, role, approval_status) 
-                VALUES (?, ?, ?, ?, ?)
-            `;
-            
-            connect.query(
-                query, 
-                [headAdmin.username, headAdmin.fullname, headAdmin.password, headAdmin.role, headAdmin.approval_status],
-                (err, result) => {
+            try {
+                const hashedPassword = await bcrypt.hash(password, 10);
+                const query = `
+                    INSERT INTO users (username, fullname, password, role, approval_status, admin_request) 
+                    VALUES (?, ?, ?, 'Head Admin', 'approved', 'null')
+                `;
+                
+                connect.query(query, [username, fullname, hashedPassword], (err, result) => {
                     if (err) {
                         console.error('Error creating Head Admin:', err);
                         return res.status(500).json({ message: 'Error creating Head Admin' });
                     }
-                    
-                    console.log('Head Admin created successfully:', result);
-                    res.status(201).json({ 
-                        message: 'Head Admin created successfully',
-                        username: username
-                    });
-                }
-            );
-        } catch (error) {
-            console.error('Error in head admin creation:', error);
-            res.status(500).json({ message: 'Server error' });
-        }
+                    res.status(201).json({ message: 'Head Admin created successfully' });
+                });
+            } catch (error) {
+                console.error('Error in head admin creation:', error);
+                res.status(500).json({ message: 'Server error' });
+            }
+        });
     });
 });
 
-app.get('/check-head-admin', (req, res) => {
+app.get('/check-head-admin', async (req, res) => {
     connect.query('SELECT * FROM users WHERE role = "Head Admin"', (err, result) => {
         if (err) {
             console.error('Database query error:', err);
             return res.status(500).json({ message: 'Database error' });
         }
-
-        // If Head Admin exists, send a response indicating that
-        if (result.length > 0) {
-            return res.json({ headAdminExists: true });
-        } else {
-            return res.json({ headAdminExists: false });
-        }
+        res.json({ headAdminExists: result.length > 0 });
     });
 });
 
@@ -173,44 +154,44 @@ app.post('/login', (req, res) => {
 // Create account endpoint
 app.post('/register', async (req, res) => {
     const { username, fullname, password, role } = req.body;
-
+    
     // Validate input fields
     if (!username || !fullname || !password) {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // Check if Head Admin already exists
-    connect.query('SELECT * FROM users WHERE role = "Head Admin"', async (err, result) => {
+    // Check if username already exists
+    connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
         if (err) {
             console.error('Database query error:', err);
             return res.status(500).json({ message: 'Database error' });
         }
 
+        if (result.length > 0) {
+            return res.status(400).json({ message: 'Username already exists' });
+        }
+
         try {
             const hashedPassword = await bcrypt.hash(password, 10);
-
-            let approvalStatus = 'pending';
-            let adminRequest = 'pending';
-
-            // Handle Head Admin creation
-            if (role === 'Head Admin' && result.length === 0) {
-                approvalStatus = 'approved';
-                adminRequest = 'null';
-            }
+            const approvalStatus = 'pending';
+            const adminRequest = 'pending';
 
             const query = `
                 INSERT INTO users (username, fullname, password, role, approval_status, admin_request) 
                 VALUES (?, ?, ?, ?, ?, ?)
             `;
             
-            connect.query(query, [username, fullname, hashedPassword, role, approvalStatus, adminRequest], (err, result) => {
-                if (err) {
-                    console.error('Error creating account:', err);
-                    return res.status(500).json({ message: 'Error creating account' });
+            connect.query(
+                query, 
+                [username, fullname, hashedPassword, role, approvalStatus, adminRequest], 
+                (err, result) => {
+                    if (err) {
+                        console.error('Error creating account:', err);
+                        return res.status(500).json({ message: 'Error creating account' });
+                    }
+                    res.status(201).json({ message: 'Account created successfully' });
                 }
-
-                res.status(201).json({ message: 'Account created successfully' });
-            });
+            );
         } catch (error) {
             console.error('Error in account creation:', error);
             res.status(500).json({ message: 'Server error' });
