@@ -555,38 +555,69 @@ app.get('/api/driver/:plateNumber', (req, res) => {
     });
 });
 
-app.put('/api/driver/update', (req, res) => {
+app.put('/api/driver/update', upload.single('image'), async (req, res) => {
     const { id, Driver_name, Plate_number, Barangay } = req.body;
+    
+    try {
+        // If there's no new image, just update the text fields
+        if (!req.file) {
+            connect.query(
+                'UPDATE driverlist SET Driver_name = ?, Plate_number = ?, Barangay = ? WHERE id = ?',
+                [Driver_name, Plate_number, Barangay, id],
+                (err, result) => {
+                    if (err) {
+                        console.error('Error updating data:', err);
+                        return res.status(500).json({ success: false, message: 'Failed to update data' });
+                    }
+                    return res.json({ success: true, message: 'Updated successfully' });
+                }
+            );
+        } else {
+            // If there's a new image, upload it to Firebase first
+            const fileName = Date.now() + path.extname(req.file.originalname);
+            const file = bucket.file(`images/${fileName}`);
+            
+            const stream = file.createWriteStream({
+                metadata: {
+                    contentType: req.file.mimetype,
+                }
+            });
 
-    console.log('Received update request:', req.body); // Log incoming data
+            stream.on('error', (err) => {
+                console.error('Error uploading to Firebase Storage:', err);
+                return res.status(500).json({ success: false, message: 'Failed to upload image' });
+            });
 
-    if (!id) {
-        console.error('Error: Driver ID is required.');
-        return res.status(400).json({ error: 'Driver ID is required.' });
+            stream.on('finish', async () => {
+                try {
+                    await file.makePublic();
+                    const imageUrl = file.publicUrl();
+                    
+                    // Update MySQL with new image URL
+                    connect.query(
+                        'UPDATE driverlist SET Driver_name = ?, Plate_number = ?, Barangay = ?, Image = ? WHERE id = ?',
+                        [Driver_name, Plate_number, Barangay, imageUrl, id],
+                        (err, result) => {
+                            if (err) {
+                                console.error('Error updating data:', err);
+                                return res.status(500).json({ success: false, message: 'Failed to update data' });
+                            }
+                            return res.json({ success: true, message: 'Updated successfully with new image' });
+                        }
+                    );
+                } catch (err) {
+                    console.error('Error making image public:', err);
+                    return res.status(500).json({ success: false, message: 'Error saving image' });
+                }
+            });
+
+            stream.end(req.file.buffer);
+        }
+    } catch (error) {
+        console.error('Error in update endpoint:', error);
+        res.status(500).json({ success: false, message: 'Server error' });
     }
-
-    const query = `
-        UPDATE driverlist
-        SET Driver_name = ?, Plate_number = ?, Barangay = ?
-        WHERE id = ?
-    `;
-
-    connect.query(query, [Driver_name, Plate_number, Barangay, id], (err, results) => {
-        if (err) {
-            console.error('Error updating driver profile:', err);
-            return res.status(500).json({ error: 'Failed to update driver profile.' });
-        }
-
-        if (results.affectedRows === 0) {
-            console.error('Error: Driver not found.');
-            return res.status(404).json({ error: 'Driver not found.' });
-        }
-
-        console.log('Driver profile updated successfully:', results);
-        res.json({ success: true, message: 'Driver profile updated successfully.' });
-    });
 });
-
 
 app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;
