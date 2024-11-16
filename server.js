@@ -328,15 +328,33 @@ const upload = multer({
 // Add a new driver record with image upload (to new driverlist table)
 app.post('/api/list', upload.single('image'), (req, res) => {
     const { plate, driver, brgy } = req.body;
-
-    if (!plate || !driver || !brgy || !req.file) {
-        return res.status(400).json({ error: 'All fields are required, including the image.' });
+    
+    // Check only required text fields
+    if (!plate || !driver || !brgy) {
+        return res.status(400).json({ error: 'Plate number, driver name, and barangay are required.' });
     }
 
-    // Firebase storage reference
+    // Handle case where no image is uploaded
+    if (!req.file || req.body.image === 'no_image') {
+        // Insert record into MySQL without image
+        connect.query(
+            'INSERT INTO driverlist (Plate_number, Driver_name, Barangay) VALUES (?, ?, ?)',
+            [plate, driver, brgy],
+            (err) => {
+                if (err) {
+                    console.error('Error inserting data into MySQL:', err);
+                    return res.status(500).json({ error: 'Failed to insert data' });
+                }
+                res.json({ msg: 'Successfully posted without image!' });
+            }
+        );
+        return;
+    }
+
+    // If there is an image, proceed with image upload
     const fileName = Date.now() + path.extname(req.file.originalname);
     const file = bucket.file(`images/${fileName}`);
-
+    
     // Create a write stream to Firebase Storage
     const stream = file.createWriteStream({
         metadata: {
@@ -354,10 +372,9 @@ app.post('/api/list', upload.single('image'), (req, res) => {
         try {
             // Make the image public (optional)
             await file.makePublic();
-
             // Get the image URL
             const imageUrl = file.publicUrl();
-
+            
             // Insert record into MySQL (driverlist table)
             connect.query(
                 'INSERT INTO driverlist (Plate_number, Driver_name, Barangay, Image) VALUES (?, ?, ?, ?)',
@@ -367,7 +384,6 @@ app.post('/api/list', upload.single('image'), (req, res) => {
                         console.error('Error inserting data into MySQL:', err);
                         return res.status(500).json({ error: 'Failed to insert data' });
                     }
-
                     res.json({ msg: 'Successfully posted with image!', imagePath: imageUrl });
                 }
             );
