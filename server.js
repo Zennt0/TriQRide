@@ -712,11 +712,11 @@ app.get('/api/seminar', (req, res) => {
 });
 
 // Delete a record by ID
-app.delete('/api/list', (req, res) => {
+app.delete('/api/remove', (req, res) => {
     const { id } = req.body;
-    console.log('DELETE /api/list - Request received', { id });
+    console.log('DELETE /api/remove - Request received', { id });
 
-    connect.query('DELETE FROM datalist WHERE id = ?', [id], (err) => {
+    connect.query('DELETE FROM driverlist WHERE id = ?', [id], (err) => {
         if (err) {
             console.error('Error deleting data:', err);
             return res.status(500).json({ error: 'Failed to delete data' });
