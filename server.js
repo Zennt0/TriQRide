@@ -62,6 +62,22 @@ app.use((req, res, next) => {
     next();
 });;
 
+// Validate image types (JPEG, PNG, GIF) and limit file size to 5MB
+const upload = multer({
+    storage: multer.memoryStorage(), // Store in memory, providing a buffer
+    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
+    fileFilter: (req, file, cb) => {
+        const allowedTypes = /jpeg|jpg|png|gif/;
+        const isValid = allowedTypes.test(path.extname(file.originalname).toLowerCase());
+        if (isValid) {
+            cb(null, true);
+        } else {
+            cb(new Error('Invalid file type. Only JPEG, PNG, and GIF are allowed.'));
+        }
+    }
+});
+
+// API Endpoints
 // Login endpoint
 app.post('/create-head-admin', async (req, res) => {
     const { username, fullname, password } = req.body;
@@ -142,72 +158,230 @@ app.post('/login', (req, res) => {
             return res.status(400).json({ message: 'Invalid username or password' });
         }
 
-        // Check if user is approved
         if (user.approval_status !== 'approved') {
             return res.status(403).json({ message: 'Access denied.' });
         }
 
-        // Proceed with login if approved
+        // Include profile_image in the response
         res.json({ 
             message: 'Login successful', 
             fullname: user.fullname,
             role: user.role,
-            userId: user.id // Add this line
+            userId: user.id,
+            profileImage: user.profile_image // Add this line
+        });
+    });
+});
+
+app.get("/api/getProfile/:id", (req, res) => {
+    const userId = req.params.id;
+
+    // SQL query to fetch the user's profile
+    const sql = `
+        SELECT username, fullname, role 
+        FROM users
+        WHERE id = ?
+    `;
+
+    // Execute the query
+    connect.query(sql, [userId], (err, results) => {
+        if (err) {
+            console.error("Error fetching profile:", err.message);
+            return res.status(500).json({ message: "Database error occurred." });
+        }
+
+        if (results.length === 0) {
+            return res.status(404).json({ message: "User not found." });
+        }
+
+        res.status(200).json(results[0]); // Send the user profile
+    });
+});
+
+app.put("/api/editProfile/:id", (req, res) => {
+    const userId = req.params.id;
+    const { username, fullname, password } = req.body;
+
+    // Validate request body
+    if (!username || !fullname || !password) {
+        return res.status(400).json({ message: "All fields are required." });
+    }
+
+    // Hash the password using bcrypt
+    bcrypt.hash(password, 10, (err, hashedPassword) => {
+        if (err) {
+            console.error("Error hashing password:", err.message);
+            return res.status(500).json({ message: "Error hashing the password." });
+        }
+
+        // SQL query to update the user profile with hashed password
+        const sql = `
+            UPDATE users
+            SET username = ?, fullname = ?, password = ?
+            WHERE id = ?
+        `;
+
+        // Execute the query
+        connect.query(sql, [username, fullname, hashedPassword, userId], (err, results) => {
+            if (err) {
+                console.error("Error updating profile:", err.message);
+                return res.status(500).json({ message: "Database error occurred." });
+            }
+
+            if (results.affectedRows === 0) {
+                return res.status(404).json({ message: "User not found." });
+            }
+
+            res.status(200).json({ message: "Profile updated successfully." });
         });
     });
 });
 
 // Create account endpoint
-app.post('/register', async (req, res) => {
+app.post('/register', upload.single('profileImage'), async (req, res) => {
     const { username, fullname, password, role } = req.body;
+    let profileImageUrl = null;
+    let fileName = null;
     
     // Validate input fields
     if (!username || !fullname || !password) {
         return res.status(400).json({ message: 'All fields are required' });
     }
 
-    // Check if username already exists
-    connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
-        if (err) {
-            console.error('Database query error:', err);
-            return res.status(500).json({ message: 'Database error' });
-        }
-
-        if (result.length > 0) {
-            return res.status(400).json({ message: 'Username already exists' });
-        }
-
-        try {
-            const hashedPassword = await bcrypt.hash(password, 10);
-            const approvalStatus = 'pending';
-            const adminRequest = 'pending';
-
-            const query = `
-                INSERT INTO users (username, fullname, password, role, approval_status, admin_request) 
-                VALUES (?, ?, ?, ?, ?, ?)
-            `;
+    try {
+        // Handle image upload if a file was provided
+        if (req.file) {
+            // Simplified folder structure: profile-images/admin
+            const sanitizedOriginalname = req.file.originalname.replace(/[^a-zA-Z0-9.]/g, '_');
             
-            connect.query(
-                query, 
-                [username, fullname, hashedPassword, role, approvalStatus, adminRequest], 
-                (err, result) => {
-                    if (err) {
-                        console.error('Error creating account:', err);
-                        return res.status(500).json({ message: 'Error creating account' });
+            // Create the full path for the file
+            fileName = `profile-images/admin/${Date.now()}-${sanitizedOriginalname}`;
+            
+            const fileBuffer = req.file.buffer;
+            
+            try {
+                // Upload to Firebase Storage with simplified folder structure
+                const file = bucket.file(fileName);
+                
+                // Upload file with metadata
+                await file.save(fileBuffer, {
+                    metadata: {
+                        contentType: req.file.mimetype,
+                        metadata: {
+                            originalname: req.file.originalname,
+                            uploadedBy: username,
+                            uploadDate: new Date().toISOString(),
+                            role: role
+                        }
                     }
-                    res.status(201).json({ message: 'Account created successfully' });
-                }
-            );
-        } catch (error) {
-            console.error('Error in account creation:', error);
-            res.status(500).json({ message: 'Server error' });
+                });
+
+                // Make the file publicly accessible
+                await file.makePublic();
+                
+                // Get the public URL
+                profileImageUrl = `https://storage.googleapis.com/${bucket.name}/${fileName}`;
+                
+                console.log(`File uploaded successfully to: ${fileName}`);
+            } catch (uploadError) {
+                console.error('Error uploading to Firebase:', uploadError);
+                return res.status(500).json({ message: 'Error uploading image to storage' });
+            }
         }
-    });
+
+        // Check if username already exists
+        connect.query('SELECT * FROM users WHERE username = ?', [username], async (err, result) => {
+            if (err) {
+                console.error('Database query error:', err);
+                
+                // If image was uploaded but database insertion failed, delete the uploaded image
+                if (profileImageUrl) {
+                    try {
+                        const file = bucket.file(fileName);
+                        await file.delete();
+                        console.log('Cleaned up uploaded file after database error');
+                    } catch (deleteError) {
+                        console.error('Error deleting uploaded file:', deleteError);
+                    }
+                }
+                
+                return res.status(500).json({ message: 'Database error' });
+            }
+
+            if (result.length > 0) {
+                // Clean up uploaded file if username exists
+                if (profileImageUrl) {
+                    try {
+                        const file = bucket.file(fileName);
+                        await file.delete();
+                        console.log('Cleaned up uploaded file due to duplicate username');
+                    } catch (deleteError) {
+                        console.error('Error deleting uploaded file:', deleteError);
+                    }
+                }
+                
+                return res.status(400).json({ message: 'Username already exists' });
+            }
+
+            try {
+                const hashedPassword = await bcrypt.hash(password, 10);
+                const approvalStatus = 'pending';
+                const adminRequest = 'pending';
+
+                const query = `
+                    INSERT INTO users (username, fullname, password, role, approval_status, admin_request, profile_image) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `;
+                
+                connect.query(
+                    query, 
+                    [username, fullname, hashedPassword, role, approvalStatus, adminRequest, profileImageUrl], 
+                    (err, result) => {
+                        if (err) {
+                            console.error('Error creating account:', err);
+                            
+                            // Clean up uploaded file if database insertion fails
+                            if (profileImageUrl) {
+                                try {
+                                    const file = bucket.file(fileName);
+                                    file.delete().catch(console.error);
+                                    console.log('Cleaned up uploaded file after account creation error');
+                                } catch (deleteError) {
+                                    console.error('Error deleting uploaded file:', deleteError);
+                                }
+                            }
+                            
+                            return res.status(500).json({ message: 'Error creating account' });
+                        }
+                        res.status(201).json({ message: 'Account created successfully' });
+                    }
+                );
+            } catch (error) {
+                console.error('Error in account creation:', error);
+                
+                // Clean up uploaded file if account creation fails
+                if (profileImageUrl) {
+                    try {
+                        const file = bucket.file(fileName);
+                        await file.delete();
+                        console.log('Cleaned up uploaded file after account creation error');
+                    } catch (deleteError) {
+                        console.error('Error deleting uploaded file:', deleteError);
+                    }
+                }
+                
+                res.status(500).json({ message: 'Server error' });
+            }
+        });
+    } catch (error) {
+        console.error('Error handling image upload:', error);
+        res.status(500).json({ message: 'Error handling image upload' });
+    }
 });
 
 app.get('/pending-admins', (req, res) => {
     connect.query(
-        'SELECT id, fullname, username FROM users WHERE role = "Admin" AND approval_status = "pending"',
+        'SELECT id, fullname, username, profile_image FROM users WHERE role = "Admin" AND approval_status = "pending"',
         (err, results) => {
             if (err) {
                 console.error("Database error:", err);
@@ -217,6 +391,7 @@ app.get('/pending-admins', (req, res) => {
         }
     );
 });
+
 
 // Approve admin route
 app.post('/approve-admin/:id', (req, res) => {
@@ -307,23 +482,6 @@ app.post('/deny-admin/:id', (req, res) => {
         );
     });
 });
-
-// Validate image types (JPEG, PNG, GIF) and limit file size to 5MB
-const upload = multer({
-    storage: multer.memoryStorage(), // Store in memory, providing a buffer
-    limits: { fileSize: 5 * 1024 * 1024 }, // 5MB limit
-    fileFilter: (req, file, cb) => {
-        const allowedTypes = /jpeg|jpg|png|gif/;
-        const isValid = allowedTypes.test(path.extname(file.originalname).toLowerCase());
-        if (isValid) {
-            cb(null, true);
-        } else {
-            cb(new Error('Invalid file type. Only JPEG, PNG, and GIF are allowed.'));
-        }
-    }
-});
-
-// API Endpoints
 
 // Add a new driver record with image upload (to new driverlist table)
 app.post('/api/list', upload.single('image'), (req, res) => {
