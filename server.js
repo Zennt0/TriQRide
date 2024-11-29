@@ -11,6 +11,8 @@ const nodemailer = require('nodemailer');
 const QRCode = require('qrcode');
 const multer = require('multer');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
+
 
 
 const app = express();
@@ -162,16 +164,42 @@ app.post('/login', (req, res) => {
             return res.status(403).json({ message: 'Access denied.' });
         }
 
-        // Include profile_image in the response
+        // Generate a JWT token
+        const token = jwt.sign(
+            { userId: user.id, role: user.role }, // Payload
+            'your-secret-key', // Secret key (move to environment variable in production)
+            { expiresIn: '1h' } // Token expiration time
+        );
+
+        // Send the token along with user details
         res.json({ 
             message: 'Login successful', 
             fullname: user.fullname,
             role: user.role,
             userId: user.id,
-            profileImage: user.profile_image // Add this line
+            profileImage: user.profile_image,
+            token: token // Include JWT
         });
     });
 });
+
+function authenticateToken(req, res, next) {
+    const authHeader = req.headers['authorization'];
+    const token = authHeader && authHeader.split(' ')[1]; // Bearer <token>
+
+    if (!token) {
+        return res.status(401).json({ message: 'Access denied. No token provided.' });
+    }
+
+    jwt.verify(token, 'your-secret-key', (err, user) => {
+        if (err) {
+            return res.status(403).json({ message: 'Invalid or expired token.' });
+        }
+
+        req.user = user; // Attach decoded token payload to `req.user`
+        next(); // Proceed to the next middleware or route handler
+    });
+}
 
 app.get("/api/getProfile/:id", (req, res) => {
     const userId = req.params.id;
