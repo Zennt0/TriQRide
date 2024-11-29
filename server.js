@@ -63,8 +63,6 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use((req, res, next) => {
     console.log(`[${new Date().toISOString()}] ${req.method} ${req.originalUrl} - Request received`);
-     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0');
-     res.set('Pragma', 'no-cache');
     next();
 });;
 
