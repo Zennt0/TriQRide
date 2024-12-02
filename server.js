@@ -811,11 +811,10 @@ app.get('/api/reports', (req, res) => {
     const searchTerm = req.query.search;
     let selectedMonth = req.query.month;
 
+    // Default to the current month if no specific month is provided
     if (!selectedMonth) {
         const today = moment().tz('Asia/Manila');
-        selectedMonth = today.month() + 1;
-    } else {
-        selectedMonth = parseInt(selectedMonth, 10);
+        selectedMonth = today.month() + 1; // Moment's months are 0-indexed
     }
 
     let query = `
@@ -832,19 +831,56 @@ app.get('/api/reports', (req, res) => {
     `;
 
     const queryParams = [];
-    if (searchTerm || selectedMonth) {
-        query += ' WHERE';
-        const conditions = [];
-        if (searchTerm) {
-            conditions.push(' Plate_number LIKE ? ');
-            queryParams.push(`%${searchTerm}%`);
-        }
-        if (selectedMonth) {
-            conditions.push(' MONTH(report_datetime) = ? ');
-            queryParams.push(selectedMonth);
-        }
-        query += conditions.join(' AND ');
+    const conditions = [];
+
+    // Add search filter if provided
+    if (searchTerm) {
+        conditions.push('Plate_number LIKE ?');
+        queryParams.push(`%${searchTerm}%`);
     }
+
+    // Add current month filter
+    if (selectedMonth) {
+        conditions.push('MONTH(report_datetime) = ?');
+        queryParams.push(parseInt(selectedMonth, 10));
+    }
+
+    if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
+    }
+
+    query += ' ORDER BY report_datetime DESC';
+
+    connect.query(query, queryParams, (err, results) => {
+        if (err) {
+            console.error('Error fetching reports:', err);
+            return res.status(500).json({ error: 'Failed to fetch reports.' });
+        }
+        res.json(results);
+    });
+});
+
+//reportmonths
+app.get('/api/reportmonths', (req, res) => {
+    const searchTerm = req.query.search;
+    
+    // Remove the month filtering logic entirely
+    let query = `
+        SELECT 
+            id,
+            Plate_number,
+            Driver_name,
+            Violations,
+            fcm_token,
+            ratings,
+            DATE_FORMAT(report_datetime, '%Y-%m-%d %H:%i:%s') as report_datetime,
+            reporter_name
+        FROM reportlist
+    `;
+
+    const queryParams = [];
+    
+
     query += ' ORDER BY report_datetime DESC';
 
     connect.query(query, queryParams, (err, results) => {
